@@ -1,6 +1,6 @@
-snowball-clone/
+MyBrokerAI/
 │
-├── docker-compose.yml               # Главный файл для сборки и запуска всей инфраструктуры
+├── docker-compose.yml          # Главный файл для сборки и запуска всей инфраструктуры
 ├── .env.example                     # Шаблон глобальных переменных окружения
 │
 ├── frontend/                        # --- ФРОНТЕНД (Next.js + React) ---

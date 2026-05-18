@@ -12,6 +12,6 @@ PS D:\develomper\MyBrokerAI\frontend> npx create-next-app@latest .
 
 ### Создание каркаса .NET проекта.
 
-cd frontend
+cd backend-core
 
-PS D:\develomper\MyBrokerAI\frontend> npx create-next-app@latest .
+PS D:\develomper\MyBrokerAI\backend-core> dotnet new webapi -n InvestTracker.WebApi
