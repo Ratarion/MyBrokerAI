@@ -1,1 +1,215 @@
+# =========================================================
+# GLOBAL
+# =========================================================
+
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*.pid
+*.seed
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Environment
 .env
+.env.*
+!.env.example
+
+# Secrets
+secrets/
+*.pem
+*.key
+*.crt
+
+# =========================================================
+# DOCKER
+# =========================================================
+
+docker-data/
+postgres-data/
+redis-data/
+rabbitmq-data/
+
+# Docker overrides
+docker-compose.override.yml
+
+# =========================================================
+# FRONTEND (Next.js / React)
+# =========================================================
+
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+frontend/.turbo/
+frontend/coverage/
+
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+frontend/.eslintcache
+frontend/.stylelintcache
+
+# TypeScript
+frontend/*.tsbuildinfo
+
+# =========================================================
+# BACKEND CORE (.NET)
+# =========================================================
+
+# Build
+backend-core/**/bin/
+backend-core/**/obj/
+
+# Rider / VS
+backend-core/.vs/
+backend-core/TestResults/
+
+# NuGet
+backend-core/packages/
+backend-core/.nuget/
+
+# EF Core local db
+backend-core/*.db
+backend-core/*.db-shm
+backend-core/*.db-wal
+
+# Coverage
+backend-core/coverage/
+backend-core/*.coverage
+backend-core/*.coveragexml
+
+# Publish
+backend-core/publish/
+
+# Logs
+backend-core/logs/
+
+# =========================================================
+# BACKEND AI (Python / FastAPI / Celery)
+# =========================================================
+
+# Python cache
+backend-ai/__pycache__/
+backend-ai/**/*.py[cod]
+backend-ai/*$py.class
+
+# Virtual envs
+backend-ai/venv/
+backend-ai/.venv/
+backend-ai/env/
+backend-ai/.env/
+
+# Python packaging
+backend-ai/build/
+backend-ai/dist/
+backend-ai/*.egg-info/
+
+# Pytest
+backend-ai/.pytest_cache/
+backend-ai/.mypy_cache/
+backend-ai/.ruff_cache/
+
+# Jupyter
+backend-ai/.ipynb_checkpoints/
+
+# Coverage
+backend-ai/.coverage
+backend-ai/htmlcov/
+
+# Celery
+backend-ai/celerybeat-schedule
+backend-ai/celerybeat.pid
+
+# ML models / datasets
+backend-ai/models_cache/
+backend-ai/checkpoints/
+backend-ai/datasets/
+backend-ai/training_data/
+backend-ai/mlruns/
+
+# Logs
+backend-ai/logs/
+
+# =========================================================
+# INFRA
+# =========================================================
+
+infra/nginx/logs/
+infra/scripts/*.local.sh
+
+# =========================================================
+# TEST FILES
+# =========================================================
+
+*.test.csv
+*.mock.json
+*.fixture.json
+
+# =========================================================
+# OS GENERATED
+# =========================================================
+
+ehthumbs.db
+Desktop.ini
+
+# =========================================================
+# OPTIONAL LARGE FILES
+# =========================================================
+
+*.zip
+*.tar
+*.gz
+*.rar
+
+# =========================================================
+# SQLITE / LOCAL DEV FILES
+# =========================================================
+
+*.sqlite
+*.sqlite3
+
+# =========================================================
+# TEMP EXPORTS
+# =========================================================
+
+exports/
+reports/
+tmp/
+cache/
+
+# =========================================================
+# AI TOKENS / CONFIG
+# =========================================================
+
+openai_key.txt
+anthropic_key.txt
+google_credentials.json
+service-account.json
+
+# =========================================================
+# TERRAFORM (IF ADDED LATER)
+# =========================================================
+
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# =========================================================
+# KUBERNETES (IF ADDED LATER)
+# =========================================================
+
+*.kubeconfig
