@@ -1,0 +1,6 @@
+@InvestTracker.WebApi_HostAddress = http://localhost:5030
+
+GET {{InvestTracker.WebApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
