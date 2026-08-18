@@ -11,6 +11,8 @@ Thumbs.db
 *.swo
 *.pid
 *.seed
+.vs
+
 
 # IDE
 .vscode/
