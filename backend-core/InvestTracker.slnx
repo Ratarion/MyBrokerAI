@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="InvestTracker.Application/InvestTracker.Application.csproj" />
+  <Project Path="InvestTracker.Domain/InvestTracker.Domain.csproj" />
+  <Project Path="InvestTracker.Infrastructure/InvestTracker.Infrastructure.csproj" />
+  <Project Path="InvestTracker.WebApi/InvestTracker.WebApi.csproj" />
+</Solution>
