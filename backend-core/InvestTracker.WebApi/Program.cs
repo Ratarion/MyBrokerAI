@@ -1,10 +1,32 @@
+using System.Text.Json.Serialization;
+using InvestTracker.Application;
+using InvestTracker.WebApi.Common;
+using InvestTracker.WebApi.Endpoints;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// MediatR + FluentValidation + пайплайн валидации (InvestTracker.Application/DependencyInjection.cs).
+builder.Services.AddApplicationServices();
+
+// Enum'ы (Currency, TransactionType, AssetType) сериализуются как строки ("RUB", "Buy"),
+// а не как числа — так их гораздо проще читать и передавать в запросах.
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
+// Единая обработка исключений: NotFoundException -> 404, ValidationException -> 400, и т.д.
+// См. InvestTracker.WebApi/Common/GlobalExceptionHandler.cs
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -13,6 +35,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapPortfolioEndpoints();
 
 var summaries = new[]
 {
