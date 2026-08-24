@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using InvestTracker.Application;
+using InvestTracker.Infrastructure;
 using InvestTracker.WebApi.Common;
 using InvestTracker.WebApi.Endpoints;
 
@@ -11,6 +12,9 @@ builder.Services.AddOpenApi();
 
 // MediatR + FluentValidation + пайплайн валидации (InvestTracker.Application/DependencyInjection.cs).
 builder.Services.AddApplicationServices();
+
+// EF Core + PostgreSQL, реализация IAppDbContext (InvestTracker.Infrastructure/DependencyInjection.cs).
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
 // Enum'ы (Currency, TransactionType, AssetType) сериализуются как строки ("RUB", "Buy"),
 // а не как числа — так их гораздо проще читать и передавать в запросах.
