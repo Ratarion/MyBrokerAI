@@ -1,4 +1,7 @@
 using InvestTracker.Application.Portfolios.Commands.CreatePortfolio;
+using InvestTracker.Application.Portfolios.Dtos;
+using InvestTracker.Application.Portfolios.Queries.GetPortfolioById;
+using InvestTracker.Application.Portfolios.Queries.GetPortfolios;
 using InvestTracker.Application.Transactions.Commands.AddTransaction;
 using InvestTracker.WebApi.Contracts;
 using MediatR;
@@ -10,6 +13,36 @@ public static class PortfolioEndpoints
     public static IEndpointRouteBuilder MapPortfolioEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/portfolios").WithTags("Portfolios");
+
+        group.MapGet("/", async (
+            Guid userId,
+            ISender sender,
+            CancellationToken cancellationToken) =>
+        {
+            var query = new GetPortfoliosQuery(userId);
+            var portfolios = await sender.Send(query, cancellationToken);
+
+            return Results.Ok(portfolios);
+        })
+        .WithName("GetPortfolios")
+        .WithSummary("Список портфелей пользователя (?userId=...)")
+        .Produces<IReadOnlyCollection<PortfolioListItemDto>>()
+        .ProducesValidationProblem();
+
+        group.MapGet("/{portfolioId:guid}", async (
+            Guid portfolioId,
+            ISender sender,
+            CancellationToken cancellationToken) =>
+        {
+            var query = new GetPortfolioByIdQuery(portfolioId);
+            var portfolio = await sender.Send(query, cancellationToken);
+
+            return Results.Ok(portfolio);
+        })
+        .WithName("GetPortfolioById")
+        .WithSummary("Детали портфеля со списком транзакций")
+        .Produces<PortfolioDetailsDto>()
+        .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapPost("/", async (
             CreatePortfolioRequest request,

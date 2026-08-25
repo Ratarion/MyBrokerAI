@@ -28,9 +28,25 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
+// Разрешаем фронтенду (Next.js dev server, localhost:3000) стучаться в API из браузера.
+// В проде список origin'ов нужно будет брать из конфига, а не хардкодить.
+const string FrontendCorsPolicy = "Frontend";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 app.UseExceptionHandler();
+
+app.UseCors(FrontendCorsPolicy);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
