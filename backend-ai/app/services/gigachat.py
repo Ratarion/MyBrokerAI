@@ -89,6 +89,11 @@ class GigaChatClient:
             raise GigaChatError(f"GigaChat chat request failed: {exc}") from exc
 
         try:
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise GigaChatError(f"Unexpected GigaChat response: {data}") from exc
+
+        # GigaChat may return a fenced JSON block despite the prompt.
+        if content.startswith("```"):
+            content = content.strip().removeprefix("```").removeprefix("json").removesuffix("```").strip()
+        return content

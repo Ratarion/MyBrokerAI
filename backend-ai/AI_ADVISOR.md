@@ -1,38 +1,38 @@
-# MyBrokerAI AI Investor Advisor
+# MyBrokerAI AI-инвестсоветник
 
-Новый AI-контур находится в `backend-ai/app` и предоставляет:
+AI-контур живёт в `backend-ai/app` и не имеет прямого доступа к PostgreSQL.
+`backend-core` формирует snapshot только текущего авторизованного пользователя и передаёт его в этот сервис.
 
-- `GET /advisor/health`
-- `POST /advisor/analyze`
+## Endpoints
 
-Для работы задайте переменные из `.env.example`.
+- `GET /advisor/health` — health check.
+- `POST /advisor/analyze` — анализ переданного портфеля.
 
-Пример запуска из `backend-ai`:
+## Контракт snapshot
+
+В запросе можно передать:
+
+- несколько брокерских счетов;
+- несколько позиций;
+- стоимость и доходность портфеля;
+- cash;
+- IMOEX и его изменение;
+- вопрос пользователя.
+
+Это позволяет одному AI-контурy обслуживать все портфели одного пользователя, не выдавая модели доступ к чужим данным.
+
+## Запуск
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Пример запроса:
+В `.env`:
 
-```json
-{
-  "question": "Проанализируй мой портфель и укажи основные риски",
-  "portfolio": {
-    "portfolio_id": "demo",
-    "total_value": 100000,
-    "currency": "RUB",
-    "cash": 10000,
-    "assets": [
-      {
-        "ticker": "SBER",
-        "name": "Сбер",
-        "quantity": 100,
-        "price": 350,
-        "currency": "RUB",
-        "weight": 0.35
-      }
-    ]
-  }
-}
+```env
+GIGACHAT_AUTH_KEY=...
+GIGACHAT_SCOPE=GIGACHAT_API_PERS
+GIGACHAT_BASE_URL=https://api.giga.chat
+GIGACHAT_MODEL=GigaChat-3-Ultra
+AI_INTERNAL_TOKEN=...
 ```
