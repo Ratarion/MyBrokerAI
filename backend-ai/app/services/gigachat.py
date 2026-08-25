@@ -47,7 +47,7 @@ class GigaChatClient:
 
         body = urllib.parse.urlencode({"scope": settings.gigachat_scope}).encode()
         request = urllib.request.Request(
-            "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+            settings.gigachat_oauth_url,
             data=body,
             method="POST",
             headers={
