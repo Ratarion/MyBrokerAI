@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Playfair_Display, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const playfairDisplay = Playfair_Display({
+  variable: "--font-playfair",
   subsets: ["latin", "cyrillic"],
-  axes: ["opsz"],
+  weight: ["500", "600"],
 });
 
 const plexSans = IBM_Plex_Sans({
@@ -33,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${playfairDisplay.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

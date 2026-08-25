@@ -22,7 +22,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
-  --font-display: var(--font-fraunces);
+  --font-display: var(--font-playfair);
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
 }
