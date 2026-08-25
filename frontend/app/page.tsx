@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 import {
   API_URL,
   CURRENCIES,
@@ -18,9 +19,21 @@ type SubmitState =
   | { status: "error"; title: string; detail?: string };
 
 export default function Home() {
+  // useSearchParams требует Suspense-границу в App Router.
+  return (
+    <Suspense fallback={null}>
+      <CreatePortfolioForm />
+    </Suspense>
+  );
+}
+
+function CreatePortfolioForm() {
+  const searchParams = useSearchParams();
+  const userIdFromQuery = searchParams.get("userId");
+
   const [name, setName] = useState("Основной портфель");
   const [baseCurrency, setBaseCurrency] = useState<Currency>("RUB");
-  const [userId, setUserId] = useState(SEED_USER_ID);
+  const [userId, setUserId] = useState(userIdFromQuery ?? SEED_USER_ID);
   const [state, setState] = useState<SubmitState>({ status: "idle" });
   const [copied, setCopied] = useState(false);
 
@@ -69,12 +82,15 @@ export default function Home() {
     <div className="ledger-bg flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface p-8 shadow-2xl shadow-black/40">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-xs tracking-[0.2em] text-muted uppercase">
-            MyBrokerAI — проверка связи
-          </p>
-          <Link href="/portfolios" className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline">
-            Все портфели →
-          </Link>
+          <p className="font-mono text-xs tracking-[0.2em] text-muted uppercase">MyBrokerAI</p>
+          <div className="flex gap-3 text-xs text-muted">
+            <Link href="/register" className="underline-offset-4 hover:text-foreground hover:underline">
+              Регистрация
+            </Link>
+            <Link href="/portfolios" className="underline-offset-4 hover:text-foreground hover:underline">
+              Все портфели →
+            </Link>
+          </div>
         </div>
 
         <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-medium leading-tight text-foreground">
@@ -82,8 +98,7 @@ export default function Home() {
         </h1>
 
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          Форма отправляет запрос напрямую в InvestTracker API и создаёт запись в Postgres —
-          это проверка того, что фронтенд и бэкенд реально соединены.
+          Форма отправляет запрос напрямую в InvestTracker API и создаёт запись в Postgres.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
@@ -112,7 +127,11 @@ export default function Home() {
 
           <Field
             label="Id пользователя"
-            hint="Пока без регистрации — подставлен Id тестового пользователя из seed-test-user.sql."
+            hint={
+              userIdFromQuery
+                ? "Подставлен id только что зарегистрированного пользователя."
+                : "Нет своего пользователя? Сначала зарегистрируйся — ссылка выше."
+            }
           >
             <input
               value={userId}

@@ -41,6 +41,15 @@ public class GlobalExceptionHandler : IExceptionHandler
                     Status = StatusCodes.Status404NotFound
                 }),
 
+            Application.Common.Exceptions.ConflictException conflictException => (
+                StatusCodes.Status409Conflict,
+                new ProblemDetails
+                {
+                    Title = "Конфликт с текущим состоянием.",
+                    Detail = conflictException.Message,
+                    Status = StatusCodes.Status409Conflict
+                }),
+
             DomainException domainException => (
                 StatusCodes.Status400BadRequest,
                 new ProblemDetails

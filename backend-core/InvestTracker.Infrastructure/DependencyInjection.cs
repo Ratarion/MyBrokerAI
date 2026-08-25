@@ -1,5 +1,6 @@
 using InvestTracker.Application.Common.Interfaces;
 using InvestTracker.Infrastructure.Persistence;
+using InvestTracker.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,8 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
         services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
+
+        services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
         return services;
     }

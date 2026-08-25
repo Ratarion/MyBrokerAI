@@ -57,6 +57,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.MapPortfolioEndpoints();
+app.MapUserEndpoints();
 
 var summaries = new[]
 {
