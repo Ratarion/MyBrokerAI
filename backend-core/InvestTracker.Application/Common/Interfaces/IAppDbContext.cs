@@ -15,5 +15,7 @@ public interface IAppDbContext
 
     DbSet<Asset> Assets { get; }
 
+    DbSet<RefreshToken> RefreshTokens { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

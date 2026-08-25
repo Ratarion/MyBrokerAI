@@ -1,4 +1,7 @@
 using System.Text.Json.Serialization;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using InvestTracker.Application;
 using InvestTracker.Infrastructure;
 using InvestTracker.WebApi.Common;
@@ -15,6 +18,27 @@ builder.Services.AddApplicationServices();
 
 // EF Core + PostgreSQL, реализация IAppDbContext (InvestTracker.Infrastructure/DependencyInjection.cs).
 builder.Services.AddInfrastructureServices(builder.Configuration);
+
+// JWT-аутентификация для доступа только к собственным ресурсам.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        var key = builder.Configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "MyBrokerAI",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "MyBrokerAI.Client",
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+builder.Services.AddAuthorization();
 
 // Enum'ы (Currency, TransactionType, AssetType) сериализуются как строки ("RUB", "Buy"),
 // а не как числа — так их гораздо проще читать и передавать в запросах.
@@ -48,6 +72,9 @@ app.UseExceptionHandler();
 
 app.UseCors(FrontendCorsPolicy);
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -56,6 +83,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.MapAuthEndpoints();
 app.MapPortfolioEndpoints();
 app.MapUserEndpoints();
 

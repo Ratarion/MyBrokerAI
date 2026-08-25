@@ -1,4 +1,7 @@
+using InvestTracker.Application.Auth;
+using InvestTracker.Application.Portfolios.Commands.CreatePortfolio;
 using InvestTracker.Application.Users.Commands.RegisterUser;
+using InvestTracker.Domain.Enums;
 using InvestTracker.WebApi.Contracts;
 using MediatR;
 
@@ -13,16 +16,30 @@ public static class UserEndpoints
         group.MapPost("/", async (
             RegisterUserRequest request,
             ISender sender,
+            IAuthService authService,
             CancellationToken cancellationToken) =>
         {
-            var command = new RegisterUserCommand(request.Email, request.DisplayName, request.Password);
-            var userId = await sender.Send(command, cancellationToken);
+            var userId = await sender.Send(
+                new RegisterUserCommand(request.Email, request.DisplayName, request.Password),
+                cancellationToken);
 
-            return Results.Created($"/api/users/{userId}", new { id = userId });
+            await sender.Send(
+                new CreatePortfolioCommand(userId, "Основной", Currency.RUB),
+                cancellationToken);
+
+            var auth = await authService.LoginAsync(request.Email, request.Password, cancellationToken);
+            if (auth is null)
+            {
+                return Results.Problem(
+                    title: "Не удалось авторизовать только что созданного пользователя.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
+
+            return Results.Ok(auth);
         })
         .WithName("RegisterUser")
-        .WithSummary("Зарегистрировать нового пользователя")
-        .Produces(StatusCodes.Status201Created)
+        .WithSummary("Зарегистрировать пользователя, создать основной портфель и сразу авторизовать")
+        .Produces<AuthResponse>(StatusCodes.Status200OK)
         .ProducesValidationProblem()
         .ProducesProblem(StatusCodes.Status409Conflict);
 

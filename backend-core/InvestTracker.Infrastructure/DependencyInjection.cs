@@ -1,3 +1,4 @@
+using InvestTracker.Application.Auth;
 using InvestTracker.Application.Common.Interfaces;
 using InvestTracker.Infrastructure.Persistence;
 using InvestTracker.Infrastructure.Security;
@@ -26,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<IAuthService, JwtAuthService>();
 
         return services;
     }

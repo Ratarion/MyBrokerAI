@@ -2,4 +2,4 @@ using InvestTracker.Domain.Enums;
 
 namespace InvestTracker.WebApi.Contracts;
 
-public record CreatePortfolioRequest(Guid UserId, string Name, Currency BaseCurrency);
+public record CreatePortfolioRequest(string Name, Currency BaseCurrency);

@@ -17,6 +17,8 @@ public class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<Asset> Assets => Set<Asset>();
 
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Подхватывает все IEntityTypeConfiguration<T> из Persistence/Configurations.
