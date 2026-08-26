@@ -12,11 +12,10 @@ type SubmitState =
   | { status: "loading" }
   | { status: "error"; title: string; detail?: string };
 
-export default function RegisterPage() {
+export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [state, setState] = useState<SubmitState>({ status: "idle" });
 
@@ -25,11 +24,16 @@ export default function RegisterPage() {
     setState({ status: "loading" });
 
     try {
-      const response = await fetch(`${API_URL}/api/users`, {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, displayName, password }),
+        body: JSON.stringify({ email, password }),
       });
+
+      if (response.status === 401) {
+        setState({ status: "error", title: "Неверный email или пароль" });
+        return;
+      }
 
       const body: (ProblemDetailsBody & Partial<AuthTokens>) | null = await response
         .json()
@@ -60,18 +64,14 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface p-8 shadow-2xl shadow-black/40">
         <div className="flex items-center justify-between">
           <p className="font-mono text-xs tracking-[0.2em] text-muted uppercase">MyBrokerAI</p>
-          <Link href="/login" className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline">
-            Уже есть аккаунт →
+          <Link href="/register" className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline">
+            Регистрация →
           </Link>
         </div>
 
         <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-medium leading-tight text-foreground">
-          Регистрация
+          Вход
         </h1>
-
-        <p className="mt-3 text-sm leading-relaxed text-muted">
-          Сразу после регистрации создастся портфель «Основной», и ты попадёшь прямо в него.
-        </p>
 
         <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
           <Field label="Email">
@@ -85,22 +85,12 @@ export default function RegisterPage() {
             />
           </Field>
 
-          <Field label="Имя">
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-              className="w-full rounded-lg border border-surface-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent"
-            />
-          </Field>
-
-          <Field label="Пароль" hint="Минимум 8 символов.">
+          <Field label="Пароль">
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={8}
               className="w-full rounded-lg border border-surface-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent"
             />
           </Field>
@@ -110,7 +100,7 @@ export default function RegisterPage() {
             disabled={state.status === "loading"}
             className="mt-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {state.status === "loading" ? "Регистрируем…" : "Зарегистрироваться"}
+            {state.status === "loading" ? "Входим…" : "Войти"}
           </button>
         </form>
 
@@ -125,20 +115,11 @@ export default function RegisterPage() {
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-muted">{label}</span>
       {children}
-      {hint && <span className="text-xs text-muted/70">{hint}</span>}
     </label>
   );
 }

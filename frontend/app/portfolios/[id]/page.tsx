@@ -1,14 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  API_URL,
-  TRANSACTION_TYPE_LABELS,
-  formatDateTime,
-  type PortfolioDetails,
-} from "@/lib/api";
+import { TRANSACTION_TYPE_LABELS, formatDateTime, type PortfolioDetails } from "@/lib/api";
+import { useAuth, useAuthFetch } from "@/lib/AuthContext";
 
 type LoadState =
   | { status: "loading" }
@@ -18,14 +14,25 @@ type LoadState =
 
 export default function PortfolioDetailsPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const { tokens, isReady } = useAuth();
+  const authFetch = useAuthFetch();
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
+    if (isReady && !tokens) {
+      router.replace("/login");
+    }
+  }, [isReady, tokens, router]);
+
+  useEffect(() => {
+    if (!tokens) return;
+
     let cancelled = false;
 
     async function load() {
       try {
-        const response = await fetch(`${API_URL}/api/portfolios/${params.id}`);
+        const response = await authFetch(`/api/portfolios/${params.id}`);
 
         if (response.status === 404) {
           if (!cancelled) setState({ status: "not-found" });
@@ -52,11 +59,15 @@ export default function PortfolioDetailsPage() {
     }
 
     load();
-
     return () => {
       cancelled = true;
     };
-  }, [params.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens, params.id]);
+
+  if (!isReady || !tokens) {
+    return null;
+  }
 
   return (
     <div className="ledger-bg flex flex-1 justify-center px-6 py-16">
@@ -70,7 +81,7 @@ export default function PortfolioDetailsPage() {
         {state.status === "not-found" && (
           <div className="mt-8 rounded-lg border border-danger/40 bg-danger/10 p-4">
             <p className="text-sm font-medium text-foreground">Портфель не найден</p>
-            <p className="mt-1 text-xs text-muted">Проверь ссылку — такого Id нет в базе.</p>
+            <p className="mt-1 text-xs text-muted">Либо его нет, либо он принадлежит другому пользователю.</p>
           </div>
         )}
 

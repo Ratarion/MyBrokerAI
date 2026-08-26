@@ -1,10 +1,5 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5030";
 
-// Id пользователя, засеянного вручную в БД (см. seed-test-user.sql в корне репозитория).
-// Оставлен как дефолт для быстрых тестов — после регистрации своего пользователя
-// подставится его настоящий id (через ?userId=... на главной).
-export const SEED_USER_ID = "11111111-1111-1111-1111-111111111111";
-
 export const CURRENCIES = ["RUB", "USD", "EUR", "GBP", "CNY"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 

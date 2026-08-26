@@ -20,12 +20,23 @@ builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
 // JWT-аутентификация для доступа только к собственным ресурсам.
+const string PlaceholderJwtKey = "CHANGE_ME_TO_A_RANDOM_SECRET_AT_LEAST_32_BYTES";
+
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+
+if (!builder.Environment.IsDevelopment() && jwtKey == PlaceholderJwtKey)
+{
+    // appsettings.json коммитится в репозиторий и содержит только placeholder — это ожидаемо для dev.
+    // Но если это же значение попадёт в прод, кто угодно сможет подделать JWT. Падаем громко, а не молча.
+    throw new InvalidOperationException(
+        "Jwt:Key всё ещё содержит placeholder-значение. Задай реальный секрет через переменную " +
+        "окружения (Jwt__Key) или секрет-хранилище перед деплоем вне Development.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var key = builder.Configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("Jwt:Key is not configured.");
-
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -34,7 +45,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"] ?? "MyBrokerAI.Client",
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew = TimeSpan.FromSeconds(30)
         };
     });
