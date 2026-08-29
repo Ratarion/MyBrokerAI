@@ -1,5 +1,6 @@
 using InvestTracker.Application.Auth;
 using InvestTracker.Application.Common.Interfaces;
+using InvestTracker.Infrastructure.Market;
 using InvestTracker.Infrastructure.Persistence;
 using InvestTracker.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuthService, JwtAuthService>();
+
+        services.AddHttpClient<IMoexQuoteProvider, MoexQuoteProvider>(client =>
+        {
+            client.BaseAddress = new Uri("https://iss.moex.com/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
 
         return services;
     }

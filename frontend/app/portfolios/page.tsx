@@ -71,12 +71,14 @@ export default function PortfoliosPage() {
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between">
           <p className="font-mono text-xs tracking-[0.2em] text-muted uppercase">MyBrokerAI</p>
-          <button
-            onClick={logout}
-            className="text-xs text-muted underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Выйти
-          </button>
+          <div className="flex items-center gap-4 text-xs text-muted">
+            <Link href="/market" className="underline-offset-4 hover:text-foreground hover:underline">
+              МосБиржа
+            </Link>
+            <button onClick={logout} className="underline-offset-4 hover:text-foreground hover:underline">
+              Выйти
+            </button>
+          </div>
         </div>
 
         <div className="mt-3 flex items-center justify-between">

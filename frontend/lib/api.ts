@@ -62,6 +62,24 @@ export interface ProblemDetailsBody {
   errors?: Record<string, string[]>;
 }
 
+export interface MoexCandle {
+  date: string;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number;
+}
+
+export const MOEX_POPULAR_TICKERS = [
+  { ticker: "IMOEX", label: "Индекс МосБиржи" },
+  { ticker: "SBER", label: "Сбербанк" },
+  { ticker: "GAZP", label: "Газпром" },
+  { ticker: "LKOH", label: "Лукойл" },
+  { ticker: "YDEX", label: "Яндекс" },
+  { ticker: "GMKN", label: "Норникель" },
+] as const;
+
 export function formatValidationErrors(errors?: Record<string, string[]>): string | undefined {
   if (!errors) return undefined;
   return Object.values(errors).flat().join(" ");

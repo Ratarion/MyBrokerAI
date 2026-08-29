@@ -97,6 +97,7 @@ app.UseHttpsRedirection();
 app.MapAuthEndpoints();
 app.MapPortfolioEndpoints();
 app.MapUserEndpoints();
+app.MapMarketEndpoints();
 
 var summaries = new[]
 {
