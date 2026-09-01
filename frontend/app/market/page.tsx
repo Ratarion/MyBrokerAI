@@ -189,7 +189,7 @@ export default function MarketPage() {
                     fontSize: 12,
                   }}
                   labelStyle={{ color: "var(--muted)" }}
-                  formatter={(value: number) => [value.toFixed(2), "Закрытие"]}
+                  formatter={(value) => [Number(value ?? 0).toFixed(2), "Закрытие"]}
                 />
                 <Line type="monotone" dataKey="close" stroke="var(--accent)" strokeWidth={2} dot={false} />
               </LineChart>
