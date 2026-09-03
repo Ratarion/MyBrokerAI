@@ -338,7 +338,7 @@ export default function PortfolioDetailsPage() {
             <div className="mt-6 rounded-xl border border-surface-border bg-surface p-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Импорт отчёта СберИнвестиций</p>
+                  <p className="text-sm font-medium text-foreground">Обновить данные портфеля (Отчёт СберИнвестиций)</p>
                   <p className="mt-0.5 text-xs text-muted">HTML-файл отчёта брокера за период.</p>
                 </div>
                 <label className="shrink-0 cursor-pointer rounded-lg border border-surface-border px-3 py-1.5 text-xs text-foreground transition-colors hover:border-accent/50">
