@@ -24,6 +24,7 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
     public async Task<ImportReportResultDto> Handle(ImportSberReportCommand request, CancellationToken cancellationToken)
     {
         var portfolio = await _context.Portfolios
+            .Include(p => p.Transactions)
             .FirstOrDefaultAsync(p => p.Id == request.PortfolioId, cancellationToken);
 
         if (portfolio is null)
