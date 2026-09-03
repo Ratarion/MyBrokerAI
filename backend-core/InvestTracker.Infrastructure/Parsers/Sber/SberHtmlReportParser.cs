@@ -25,10 +25,41 @@ public partial class SberHtmlReportParser : IBrokerReportParser
         var cashFlows = new List<ParsedCashFlow>();
         var unrecognized = new List<string>();
 
+        ParseSecuritiesDictionary(document, securities);
         ParseTrades(document, securities, trades);
         ParseCashFlows(document, securities, cashFlows, unrecognized);
 
         return new ParsedBrokerReport(securities.Values.ToList(), trades, cashFlows, unrecognized);
+    }
+
+    private static void ParseSecuritiesDictionary(HtmlDocument document, Dictionary<string, ParsedSecurity> securities)
+    {
+        var table = document.DocumentNode.SelectSingleNode(
+            "//p[contains(., 'Справочник Ценных Бумаг')]/following-sibling::table[1]");
+
+        var rows = table?.SelectNodes(".//tr");
+        if (rows is null) return;
+
+        foreach (var row in rows)
+        {
+            var cells = row.SelectNodes("./td");
+            // Наименование, Код актива, ISIN, Эмитент, Вид, Гос. рег. номер
+            if (cells is null || cells.Count < 3) continue;
+
+            var name = Text(cells[0]);
+            var code = Text(cells[1]).ToUpperInvariant();
+            var isin = Text(cells[2]).ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(code) || code == "КОД АКТИВА") continue;
+
+            securities.TryAdd(code, new ParsedSecurity(code, name));
+            // Если код не совпадает с ISIN, полезно добавить и по ISIN, 
+            // чтобы можно было находить бумаги по fallbackCode = ISIN
+            if (!string.IsNullOrWhiteSpace(isin) && isin != code)
+            {
+                securities.TryAdd(isin, new ParsedSecurity(isin, name));
+            }
+        }
     }
 
     private static void ParseTrades(
@@ -174,6 +205,21 @@ public partial class SberHtmlReportParser : IBrokerReportParser
                     securityCode = fallbackCode.ToUpperInvariant();
                     securities.TryAdd(securityCode, new ParsedSecurity(securityCode, securityName));
                 }
+                else if (securityName.EndsWith(" ETF", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Эвристика: Сбербанк иногда пишет "Выплата дохода по паям/ису FLOW ETF. Налог удержан."
+                    // Тикер фонда здесь — FLOW. Проверяем, есть ли такой код.
+                    var possibleCode = securityName.Substring(0, securityName.Length - 4).Trim().ToUpperInvariant();
+                    if (securities.TryGetValue(possibleCode, out var foundAsset))
+                    {
+                        securityCode = foundAsset.Code;
+                    }
+                    else
+                    {
+                        // Если в Справочнике Ценных Бумаг нет, всё равно пробуем передать код тикера
+                        securityCode = possibleCode;
+                    }
+                }
             }
 
             cashFlows.Add(new ParsedCashFlow(executedAt, type, amount, currency, securityCode, externalId, description));
@@ -274,10 +320,10 @@ public partial class SberHtmlReportParser : IBrokerReportParser
     [GeneratedRegex(@"^Дивиденды (?<name>.+?); ISIN (?<isin>[A-Z0-9]+);")]
     private static partial Regex DividendWithIsinRegex();
 
-    [GeneratedRegex(@"^Выплата по паям/ису (?<name>.+?); ISIN (?<isin>[A-Z0-9]+);")]
+    [GeneratedRegex(@"^Выплата (дохода )?по паям/ису (?<name>.+?);\s*ISIN\s+(?<isin>[A-Z0-9]+);")]
     private static partial Regex FundDistributionWithIsinRegex();
 
-    [GeneratedRegex(@"^Выплата дохода по паям/ису (?<name>.+?)(\. Налог удержан\.)?$")]
+    [GeneratedRegex(@"^Выплата (дохода )?по паям/ису (?<name>.+?)(\. Налог удержан\.?)?$")]
     private static partial Regex FundDistributionRegex();
 
     [GeneratedRegex(@"^Выплата купонов (?<name>.+?), номер купона \d+$")]
