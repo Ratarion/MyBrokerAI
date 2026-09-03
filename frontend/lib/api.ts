@@ -128,3 +128,28 @@ export function formatDateTime(iso: string): string {
     minute: "2-digit",
   });
 }
+
+export interface HoldingMarketValueDto {
+  assetId: string;
+  ticker: string;
+  name: string;
+  assetType: AssetType;
+  quantity: number;
+  avgPrice: number;
+  currency: Currency;
+  hasQuote: boolean;
+  lastPrice: number;
+  marketValue: number;
+  totalCost: number;
+  unrealizedPnl: number;
+  unrealizedPnlPct: number;
+}
+
+export interface PortfolioMarketValueDto {
+  totalMarketValue: number;
+  totalCost: number;
+  totalUnrealizedPnl: number;
+  totalUnrealizedPnlPct: number;
+  holdings: HoldingMarketValueDto[];
+  fetchedAt: string;
+}

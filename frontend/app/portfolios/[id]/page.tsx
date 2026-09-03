@@ -11,6 +11,8 @@ import {
   type HoldingDto,
   type ImportReportResult,
   type PortfolioDetails,
+  type PortfolioMarketValueDto,
+  type HoldingMarketValueDto,
   type ProblemDetailsBody,
 } from "@/lib/api";
 import { useAuth, useAuthFetch } from "@/lib/AuthContext";
@@ -27,6 +29,12 @@ type ImportState =
   | { status: "success"; result: ImportReportResult }
   | { status: "error"; message: string };
 
+type MarketState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "loaded"; data: PortfolioMarketValueDto }
+  | { status: "error" };
+
 export default function PortfolioDetailsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -34,12 +42,27 @@ export default function PortfolioDetailsPage() {
   const authFetch = useAuthFetch();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [importState, setImportState] = useState<ImportState>({ status: "idle" });
+  const [marketState, setMarketState] = useState<MarketState>({ status: "idle" });
 
   useEffect(() => {
     if (isReady && !tokens) {
       router.replace("/login");
     }
   }, [isReady, tokens, router]);
+
+  const loadMarketValue = useCallback(async () => {
+    try {
+      const res = await authFetch(`/api/portfolios/${params.id}/market-value`);
+      if (res.ok) {
+        const data = await res.json();
+        setMarketState({ status: "loaded", data });
+      } else {
+        setMarketState({ status: "error" });
+      }
+    } catch {
+      setMarketState({ status: "error" });
+    }
+  }, [params.id, authFetch]);
 
   const loadPortfolio = useCallback(async () => {
     try {
@@ -100,7 +123,8 @@ export default function PortfolioDetailsPage() {
       }
 
       setImportState({ status: "success", result: body as ImportReportResult });
-      await loadPortfolio(); // подтянуть новые транзакции в список
+      await loadPortfolio();
+      loadMarketValue(); // подтянуть новые транзакции в список
     } catch {
       setImportState({ status: "error", message: "Не удалось загрузить файл" });
     }
@@ -144,6 +168,61 @@ export default function PortfolioDetailsPage() {
             <p className="mt-2 text-xs text-muted">
               Создан {formatDateTime(state.portfolio.createdAt)}
             </p>
+            {/* ── Рыночная стоимость ──────────────────────────── */}
+            {marketState.status === "loaded" && (
+              <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4 rounded-xl border border-surface-border bg-surface p-5">
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-muted uppercase tracking-wider">
+                    Рыночная стоимость
+                  </p>
+                  <p className="mt-1 font-[family-name:var(--font-display)] text-3xl font-medium text-foreground">
+                    {marketState.data.totalMarketValue.toLocaleString("ru-RU", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    <span className="text-xl text-muted">{state.portfolio.baseCurrency}</span>
+                  </p>
+                </div>
+
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-muted uppercase tracking-wider">
+                    Нереализованный PnL
+                  </p>
+                  <p
+                    className={
+                      "mt-1 font-[family-name:var(--font-display)] text-3xl font-medium " +
+                      (marketState.data.totalUnrealizedPnl >= 0 ? "text-success" : "text-danger")
+                    }
+                  >
+                    {marketState.data.totalUnrealizedPnl > 0 ? "+" : ""}
+                    {marketState.data.totalUnrealizedPnl.toLocaleString("ru-RU", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    <span className="text-xl opacity-70">
+                      ({marketState.data.totalUnrealizedPnlPct > 0 ? "+" : ""}
+                      {marketState.data.totalUnrealizedPnlPct.toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                      %)
+                    </span>
+                  </p>
+                </div>
+                
+                <div className="text-right self-end sm:self-center shrink-0">
+                  <p className="text-xs text-muted">
+                    Обновлено: {new Date(marketState.data.fetchedAt).toLocaleTimeString("ru-RU")}
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {marketState.status === "error" && (
+              <div className="mt-6 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+                Котировки временно недоступны.
+              </div>
+            )}
 
             {/* ── Денежный баланс ─────────────────────────────── */}
             {state.portfolio.cashBalances.length > 0 && (
@@ -315,3 +394,7 @@ export default function PortfolioDetailsPage() {
     </div>
   );
 }
+
+
+
+
