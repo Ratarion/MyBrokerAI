@@ -8,4 +8,6 @@ public record PortfolioDetailsDto(
     string Name,
     Currency BaseCurrency,
     DateTimeOffset CreatedAt,
-    IReadOnlyCollection<TransactionDto> Transactions);
+    IReadOnlyCollection<TransactionDto> Transactions,
+    IReadOnlyCollection<HoldingDto> Holdings,
+    IReadOnlyCollection<CashBalanceDto> CashBalances);

@@ -20,13 +20,14 @@ public class GetPortfolioByIdQueryHandler : IRequestHandler<GetPortfolioByIdQuer
     {
         var portfolio = await _context.Portfolios
             .Where(p => p.Id == request.PortfolioId)
-            .Select(p => new PortfolioDetailsDto(
+            .Select(p => new
+            {
                 p.Id,
                 p.UserId,
                 p.Name,
                 p.BaseCurrency,
                 p.CreatedAt,
-                p.Transactions
+                Transactions = p.Transactions
                     .OrderByDescending(t => t.ExecutedAt)
                     .Select(t => new TransactionDto(
                         t.Id,
@@ -39,7 +40,8 @@ public class GetPortfolioByIdQueryHandler : IRequestHandler<GetPortfolioByIdQuer
                         t.Fee.Currency,
                         t.ExecutedAt,
                         t.Notes))
-                    .ToList()))
+                    .ToList(),
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (portfolio is null)
@@ -47,6 +49,37 @@ public class GetPortfolioByIdQueryHandler : IRequestHandler<GetPortfolioByIdQuer
             throw new NotFoundException(nameof(Portfolio), request.PortfolioId);
         }
 
-        return portfolio;
+        // Собираем справочник активов, которые встречаются в транзакциях портфеля
+        var assetIds = portfolio.Transactions
+            .Where(t => t.AssetId.HasValue)
+            .Select(t => t.AssetId!.Value)
+            .Distinct()
+            .ToList();
+
+        var assetsById = await _context.Assets
+            .Where(a => assetIds.Contains(a.Id))
+            .Select(a => new { a.Id, Ticker = a.Ticker.Symbol, a.Name, a.Type })
+            .ToDictionaryAsync(
+                a => a.Id,
+                a => new AssetSummary(a.Ticker, a.Name, a.Type),
+                cancellationToken);
+
+        // Вычисляем открытые позиции и денежный баланс методом средневзвешенной цены.
+        // Для расчёта нужны транзакции в хронологическом порядке (ASC).
+        var transactionsAsc = portfolio.Transactions
+            .OrderBy(t => t.ExecutedAt)
+            .ToList();
+
+        var (holdings, cashBalances) = PortfolioCalculator.Calculate(transactionsAsc, assetsById);
+
+        return new PortfolioDetailsDto(
+            portfolio.Id,
+            portfolio.UserId,
+            portfolio.Name,
+            portfolio.BaseCurrency,
+            portfolio.CreatedAt,
+            portfolio.Transactions,
+            holdings,
+            cashBalances);
     }
 }
