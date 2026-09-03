@@ -59,7 +59,7 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
             })
             .ToList();
 
-        var (holdingsBase, _) = PortfolioCalculator.Calculate(transactionsAsc, assetsById);
+        var (holdingsBase, cashBalances) = PortfolioCalculator.Calculate(transactionsAsc, assetsById);
 
         // Запрашиваем цены в MOEX
         var instruments = holdingsBase
@@ -110,6 +110,21 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
                 h.Quantity, h.AvgPrice, h.AvgPriceCurrency,
                 hasQuote, lastPrice, marketValue, totalCost,
                 unrealizedPnl, Math.Round(unrealizedPnlPct, 2)));
+        }
+
+        // Добавляем кэш к общей стоимости портфеля
+        foreach (var cash in cashBalances)
+        {
+            if (cash.Currency == Currency.RUB)
+            {
+                totalMarketValue += cash.Amount;
+                totalCostForPnl += cash.Amount;
+            }
+            else if (cash.Currency == Currency.CNY)
+            {
+                totalMarketValue += cash.Amount * 12.0m;
+                totalCostForPnl += cash.Amount * 12.0m; // Упрощенно
+            }
         }
 
         decimal totalUnrealizedPnl = totalMarketValue - totalCostForPnl;

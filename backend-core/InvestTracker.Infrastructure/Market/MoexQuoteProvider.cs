@@ -99,25 +99,31 @@ public class MoexQuoteProvider : IMoexQuoteProvider
             // Акции (TQBR)
             string securitiesParam = string.Join(",", stocks);
             var url = $"iss/engines/stock/markets/shares/boards/TQBR/securities.json?securities={securitiesParam}&iss.meta=off&iss.only=securities,marketdata";
-            await FetchAndParseMarketData(url, false, result, cancellationToken);
+            await FetchAndParseMarketData(url, false, result, stocks, cancellationToken);
         }
 
         if (bonds.Count > 0)
         {
             // ОФЗ (TQOB)
-            string securitiesParam = string.Join(",", bonds);
-            var tqobUrl = $"iss/engines/stock/markets/bonds/boards/TQOB/securities.json?securities={securitiesParam}&iss.meta=off&iss.only=securities,marketdata";
-            await FetchAndParseMarketData(tqobUrl, true, result, cancellationToken);
+            var tqobUrl = "iss/engines/stock/markets/bonds/boards/TQOB/securities.json?iss.meta=off&iss.only=securities,marketdata";
+            await FetchAndParseMarketData(tqobUrl, true, result, bonds, cancellationToken);
             
-            // Корпоративные облигации (TQCB). MOEX не вернет ошибку, если в запросе будут тикеры, которых нет на TQCB.
-            var tqcbUrl = $"iss/engines/stock/markets/bonds/boards/TQCB/securities.json?securities={securitiesParam}&iss.meta=off&iss.only=securities,marketdata";
-            await FetchAndParseMarketData(tqcbUrl, true, result, cancellationToken);
+            // Корпоративные облигации (TQCB)
+            var tqcbUrl = "iss/engines/stock/markets/bonds/boards/TQCB/securities.json?iss.meta=off&iss.only=securities,marketdata";
+            await FetchAndParseMarketData(tqcbUrl, true, result, bonds, cancellationToken);
+
+            // Субфедеральные облигации (TQPI / TQIR)
+            var tqirUrl = "iss/engines/stock/markets/bonds/boards/TQIR/securities.json?iss.meta=off&iss.only=securities,marketdata";
+            await FetchAndParseMarketData(tqirUrl, true, result, bonds, cancellationToken);
+            
+            var tqpiUrl = "iss/engines/stock/markets/bonds/boards/TQPI/securities.json?iss.meta=off&iss.only=securities,marketdata";
+            await FetchAndParseMarketData(tqpiUrl, true, result, bonds, cancellationToken);
         }
 
         return result;
     }
 
-    private async Task FetchAndParseMarketData(string url, bool isBond, Dictionary<string, MoexCurrentQuoteDto> result, CancellationToken cancellationToken)
+    private async Task FetchAndParseMarketData(string url, bool isBond, Dictionary<string, MoexCurrentQuoteDto> result, List<string> requestedTickers, CancellationToken cancellationToken)
     {
         try
         {
@@ -127,7 +133,7 @@ public class MoexQuoteProvider : IMoexQuoteProvider
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
-            var prices = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            var pricesBySecId = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
 
             if (document.RootElement.TryGetProperty("marketdata", out var mdElement))
             {
@@ -139,9 +145,9 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                 {
                     foreach (var row in mdElement.GetProperty("data").EnumerateArray())
                     {
-                        var ticker = row[secIdIdx].GetString();
-                        if (string.IsNullOrEmpty(ticker) || row[lastIdx].ValueKind == JsonValueKind.Null) continue;
-                        prices[ticker] = row[lastIdx].GetDecimal();
+                        var secId = row[secIdIdx].GetString();
+                        if (string.IsNullOrEmpty(secId) || row[lastIdx].ValueKind == JsonValueKind.Null) continue;
+                        pricesBySecId[secId] = row[lastIdx].GetDecimal();
                     }
                 }
             }
@@ -150,6 +156,7 @@ public class MoexQuoteProvider : IMoexQuoteProvider
             {
                 var columns = secElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
                 var secIdIdx = columns.IndexOf("SECID");
+                var isinIdx = columns.IndexOf("ISIN");
                 var faceValueIdx = isBond ? columns.IndexOf("FACEVALUE") : -1;
                 var aciIdx = isBond ? columns.IndexOf("ACCRUEDINT") : -1;
 
@@ -157,8 +164,10 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                 {
                     foreach (var row in secElement.GetProperty("data").EnumerateArray())
                     {
-                        var ticker = row[secIdIdx].GetString();
-                        if (string.IsNullOrEmpty(ticker) || !prices.TryGetValue(ticker, out var lastPrice)) continue;
+                        var secId = row[secIdIdx].GetString();
+                        if (string.IsNullOrEmpty(secId) || !pricesBySecId.TryGetValue(secId, out var lastPrice)) continue;
+
+                        var isin = isinIdx >= 0 ? row[isinIdx].GetString() : null;
 
                         decimal faceValue = 1m;
                         decimal aci = 0m;
@@ -173,7 +182,15 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                             aci = row[aciIdx].GetDecimal();
                         }
 
-                        result[ticker] = new MoexCurrentQuoteDto(ticker, lastPrice, faceValue, aci);
+                        // Если secId или isin есть в запрошенных тикерах, добавляем в результат
+                        foreach (var reqTicker in requestedTickers)
+                        {
+                            if (string.Equals(reqTicker, secId, StringComparison.OrdinalIgnoreCase) ||
+                                (!string.IsNullOrEmpty(isin) && string.Equals(reqTicker, isin, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                result[reqTicker] = new MoexCurrentQuoteDto(reqTicker, lastPrice, faceValue, aci);
+                            }
+                        }
                     }
                 }
             }
