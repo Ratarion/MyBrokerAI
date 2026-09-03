@@ -29,6 +29,13 @@ public class Transaction : AuditableEntity
 
     public string? Notes { get; private set; }
 
+    /// <summary>
+    /// Внешний идентификатор операции у брокера (например, номер сделки).
+    /// Используется для дедупликации при повторном импорте одного и того же отчёта.
+    /// Null для транзакций, созданных вручную.
+    /// </summary>
+    public string? ExternalId { get; private set; }
+
     private Transaction()
     {
         // Для EF Core.
@@ -42,7 +49,8 @@ public class Transaction : AuditableEntity
         decimal quantity,
         Money price,
         Money fee,
-        DateTimeOffset executedAt) : base(id)
+        DateTimeOffset executedAt,
+        string? externalId) : base(id)
     {
         PortfolioId = portfolioId;
         AssetId = assetId;
@@ -51,6 +59,7 @@ public class Transaction : AuditableEntity
         Price = price;
         Fee = fee;
         ExecutedAt = executedAt;
+        ExternalId = externalId;
     }
 
     public static Transaction Create(
@@ -60,7 +69,8 @@ public class Transaction : AuditableEntity
         decimal quantity,
         Money price,
         Money fee,
-        DateTimeOffset executedAt)
+        DateTimeOffset executedAt,
+        string? externalId = null)
     {
         if (portfolioId == Guid.Empty)
         {
@@ -87,7 +97,7 @@ public class Transaction : AuditableEntity
             throw new DomainException("Комиссия не может быть отрицательной.");
         }
 
-        return new Transaction(Guid.NewGuid(), portfolioId, assetId, type, quantity, price, fee, executedAt);
+        return new Transaction(Guid.NewGuid(), portfolioId, assetId, type, quantity, price, fee, executedAt, externalId);
     }
 
     public void SetNotes(string? notes)

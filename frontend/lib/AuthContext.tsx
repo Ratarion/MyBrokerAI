@@ -62,7 +62,9 @@ export function useAuthFetch() {
       fetch(`${API_URL}${path}`, {
         ...init,
         headers: {
-          ...(init.body ? { "Content-Type": "application/json" } : {}),
+          // Для FormData (загрузка файлов) Content-Type НЕ ставим — браузер сам
+          // проставит multipart/form-data с правильным boundary.
+          ...(init.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
           ...init.headers,
           Authorization: `Bearer ${accessToken}`,
         },

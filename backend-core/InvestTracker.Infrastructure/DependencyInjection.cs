@@ -1,6 +1,7 @@
 using InvestTracker.Application.Auth;
 using InvestTracker.Application.Common.Interfaces;
 using InvestTracker.Infrastructure.Market;
+using InvestTracker.Infrastructure.Parsers.Sber;
 using InvestTracker.Infrastructure.Persistence;
 using InvestTracker.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,8 @@ public static class DependencyInjection
             client.BaseAddress = new Uri("https://iss.moex.com/");
             client.Timeout = TimeSpan.FromSeconds(10);
         });
+
+        services.AddScoped<IBrokerReportParser, SberHtmlReportParser>();
 
         return services;
     }

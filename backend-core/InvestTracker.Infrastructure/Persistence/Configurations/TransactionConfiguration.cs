@@ -47,6 +47,15 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         builder.Property(t => t.Notes)
             .HasMaxLength(1000);
 
+        builder.Property(t => t.ExternalId)
+            .HasMaxLength(100);
+
+        // Дедуп при повторном импорте одного и того же отчёта: в пределах портфеля
+        // ExternalId должен быть уникален, но только когда он задан (ручные транзакции — null).
+        builder.HasIndex(t => new { t.PortfolioId, t.ExternalId })
+            .IsUnique()
+            .HasFilter("\"ExternalId\" IS NOT NULL");
+
         // Asset — отдельный агрегат, ссылка только по Id, без навигационного свойства.
         builder.HasOne<Asset>()
             .WithMany()

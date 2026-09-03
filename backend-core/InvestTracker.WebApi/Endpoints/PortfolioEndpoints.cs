@@ -1,4 +1,6 @@
 using InvestTracker.Application.Common.Interfaces;
+using InvestTracker.Application.Imports.Commands.ImportSberReport;
+using InvestTracker.Application.Imports.Dtos;
 using InvestTracker.Application.Portfolios.Commands.CreatePortfolio;
 using InvestTracker.Application.Portfolios.Dtos;
 using InvestTracker.Application.Portfolios.Queries.GetPortfolioById;
@@ -116,6 +118,48 @@ public static class PortfolioEndpoints
         .Produces(StatusCodes.Status201Created)
         .ProducesValidationProblem()
         .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/{portfolioId:guid}/import/sber", async (
+            Guid portfolioId,
+            IFormFile file,
+            HttpContext httpContext,
+            ISender sender,
+            IAppDbContext dbContext,
+            CancellationToken cancellationToken) =>
+        {
+            var userId = httpContext.GetRequiredUserId();
+
+            var owned = await dbContext.Portfolios
+                .AnyAsync(p => p.Id == portfolioId && p.UserId == userId, cancellationToken);
+
+            if (!owned)
+            {
+                return Results.NotFound();
+            }
+
+            if (file.Length == 0)
+            {
+                return Results.BadRequest(new { title = "Файл пуст." });
+            }
+
+            const long maxFileSizeBytes = 10 * 1024 * 1024;
+            if (file.Length > maxFileSizeBytes)
+            {
+                return Results.BadRequest(new { title = "Файл слишком большой (максимум 10 МБ)." });
+            }
+
+            await using var stream = file.OpenReadStream();
+
+            var result = await sender.Send(new ImportSberReportCommand(portfolioId, stream), cancellationToken);
+
+            return Results.Ok(result);
+        })
+        .WithName("ImportSberReport")
+        .WithSummary("Импортировать HTML-отчёт брокера СберИнвестиций в свой портфель")
+        .DisableAntiforgery()
+        .Produces<ImportReportResultDto>()
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesValidationProblem();
 
         return app;
     }

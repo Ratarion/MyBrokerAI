@@ -56,6 +56,13 @@ export interface PortfolioDetails {
   transactions: TransactionDto[];
 }
 
+export interface ImportReportResult {
+  transactionsImported: number;
+  transactionsSkippedAsDuplicate: number;
+  assetsCreated: number;
+  unrecognizedDescriptions: string[];
+}
+
 export interface ProblemDetailsBody {
   title?: string;
   detail?: string;

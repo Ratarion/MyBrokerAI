@@ -55,9 +55,10 @@ public class Portfolio : AuditableEntity
         decimal quantity,
         Money price,
         Money fee,
-        DateTimeOffset executedAt)
+        DateTimeOffset executedAt,
+        string? externalId = null)
     {
-        var transaction = Transaction.Create(Id, assetId, type, quantity, price, fee, executedAt);
+        var transaction = Transaction.Create(Id, assetId, type, quantity, price, fee, executedAt, externalId);
         _transactions.Add(transaction);
         Touch();
         return transaction;
