@@ -47,6 +47,31 @@ export interface TransactionDto {
   notes: string | null;
 }
 
+export type AssetType = "Stock" | "Bond" | "Etf" | "Currency" | "Other";
+
+export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  Stock: "Акция",
+  Bond: "Облигация",
+  Etf: "ETF/Фонд",
+  Currency: "Валюта",
+  Other: "Прочее",
+};
+
+export interface HoldingDto {
+  assetId: string;
+  ticker: string;
+  name: string;
+  assetType: AssetType;
+  quantity: number;
+  avgPrice: number;
+  avgPriceCurrency: Currency;
+}
+
+export interface CashBalanceDto {
+  currency: Currency;
+  amount: number;
+}
+
 export interface PortfolioDetails {
   id: string;
   userId: string;
@@ -54,6 +79,8 @@ export interface PortfolioDetails {
   baseCurrency: Currency;
   createdAt: string;
   transactions: TransactionDto[];
+  holdings: HoldingDto[];
+  cashBalances: CashBalanceDto[];
 }
 
 export interface ImportReportResult {

@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ChangeEvent } from "react";
 import {
+  ASSET_TYPE_LABELS,
   TRANSACTION_TYPE_LABELS,
   formatDateTime,
+  type CashBalanceDto,
+  type HoldingDto,
   type ImportReportResult,
   type PortfolioDetails,
   type ProblemDetailsBody,
@@ -141,6 +144,89 @@ export default function PortfolioDetailsPage() {
             <p className="mt-2 text-xs text-muted">
               Создан {formatDateTime(state.portfolio.createdAt)}
             </p>
+
+            {/* ── Денежный баланс ─────────────────────────────── */}
+            {state.portfolio.cashBalances.length > 0 && (
+              <>
+                <h2 className="mt-8 text-xs font-medium tracking-[0.15em] text-muted uppercase">
+                  Денежный баланс
+                </h2>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {state.portfolio.cashBalances.map((cb) => (
+                    <div
+                      key={cb.currency}
+                      className="rounded-xl border border-surface-border bg-surface px-4 py-3 min-w-[120px]"
+                    >
+                      <p className="text-xs text-muted">{cb.currency}</p>
+                      <p
+                        className={
+                          "mt-0.5 font-mono text-base font-medium " +
+                          (cb.amount >= 0 ? "text-foreground" : "text-danger")
+                        }
+                      >
+                        {cb.amount.toLocaleString("ru-RU", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── Позиции (открытые холдинги) ──────────────────── */}
+            {state.portfolio.holdings.length > 0 && (
+              <>
+                <h2 className="mt-8 text-xs font-medium tracking-[0.15em] text-muted uppercase">
+                  Позиции
+                </h2>
+                <div className="mt-3 overflow-x-auto rounded-xl border border-surface-border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-surface-border bg-surface">
+                        <th className="px-4 py-2.5 text-left font-medium text-muted">Тикер</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-muted">Название</th>
+                        <th className="px-4 py-2.5 text-right font-medium text-muted">Кол-во</th>
+                        <th className="px-4 py-2.5 text-right font-medium text-muted">Ср. цена</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-muted">Тип</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {state.portfolio.holdings.map((h, i) => (
+                        <tr
+                          key={h.assetId}
+                          className={
+                            "border-b border-surface-border last:border-0 " +
+                            (i % 2 === 0 ? "bg-surface" : "bg-transparent")
+                          }
+                        >
+                          <td className="px-4 py-3 font-mono font-medium text-foreground">
+                            {h.ticker}
+                          </td>
+                          <td className="px-4 py-3 text-foreground max-w-[180px] truncate" title={h.name}>
+                            {h.name}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-foreground">
+                            {h.quantity.toLocaleString("ru-RU", { maximumFractionDigits: 4 })}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-foreground">
+                            {h.avgPrice.toLocaleString("ru-RU", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            <span className="text-muted">{h.avgPriceCurrency}</span>
+                          </td>
+                          <td className="px-4 py-3 text-muted">
+                            {ASSET_TYPE_LABELS[h.assetType]}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             <div className="mt-6 rounded-xl border border-surface-border bg-surface p-4">
               <div className="flex items-center justify-between gap-4">
