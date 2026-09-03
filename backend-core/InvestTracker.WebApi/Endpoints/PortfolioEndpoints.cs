@@ -162,7 +162,33 @@ public static class PortfolioEndpoints
         .ProducesProblem(StatusCodes.Status404NotFound)
         .ProducesValidationProblem();
 
+        group.MapGet("/{portfolioId:guid}/market-value", async (
+            Guid portfolioId,
+            HttpContext httpContext,
+            ISender sender,
+            IAppDbContext dbContext,
+            CancellationToken cancellationToken) =>
+        {
+            var userId = httpContext.GetRequiredUserId();
+
+            var owned = await dbContext.Portfolios
+                .AnyAsync(p => p.Id == portfolioId && p.UserId == userId, cancellationToken);
+
+            if (!owned)
+            {
+                return Results.NotFound();
+            }
+
+            var marketValue = await sender.Send(new GetPortfolioMarketValueQuery(portfolioId), cancellationToken);
+            return Results.Ok(marketValue);
+        })
+        .WithName("GetPortfolioMarketValue")
+        .WithSummary("Рыночная стоимость портфеля")
+        .Produces<PortfolioMarketValueDto>()
+        .ProducesProblem(StatusCodes.Status404NotFound);
+
         return app;
     }
 }
+
 

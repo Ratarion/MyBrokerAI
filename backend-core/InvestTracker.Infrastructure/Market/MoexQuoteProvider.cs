@@ -98,7 +98,7 @@ public class MoexQuoteProvider : IMoexQuoteProvider
         {
             // Акции (TQBR)
             string securitiesParam = string.Join(",", stocks);
-            var url = $"iss/engines/stock/markets/shares/boards/TQBR/securities.json?securities={securitiesParam}&columns=SECID,LAST&iss.meta=off&iss.only=securities";
+            var url = $"iss/engines/stock/markets/shares/boards/TQBR/securities.json?securities={securitiesParam}&iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(url, false, result, cancellationToken);
         }
 
@@ -106,11 +106,11 @@ public class MoexQuoteProvider : IMoexQuoteProvider
         {
             // ОФЗ (TQOB)
             string securitiesParam = string.Join(",", bonds);
-            var tqobUrl = $"iss/engines/stock/markets/bonds/boards/TQOB/securities.json?securities={securitiesParam}&columns=SECID,LAST,FACEVALUE,ACCRUEDINT&iss.meta=off&iss.only=securities";
+            var tqobUrl = $"iss/engines/stock/markets/bonds/boards/TQOB/securities.json?securities={securitiesParam}&iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(tqobUrl, true, result, cancellationToken);
             
             // Корпоративные облигации (TQCB). MOEX не вернет ошибку, если в запросе будут тикеры, которых нет на TQCB.
-            var tqcbUrl = $"iss/engines/stock/markets/bonds/boards/TQCB/securities.json?securities={securitiesParam}&columns=SECID,LAST,FACEVALUE,ACCRUEDINT&iss.meta=off&iss.only=securities";
+            var tqcbUrl = $"iss/engines/stock/markets/bonds/boards/TQCB/securities.json?securities={securitiesParam}&iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(tqcbUrl, true, result, cancellationToken);
         }
 
@@ -127,43 +127,60 @@ public class MoexQuoteProvider : IMoexQuoteProvider
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
-            if (!document.RootElement.TryGetProperty("securities", out var secElement)) return;
+            var prices = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
 
-            var columns = secElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
-            var secIdIdx = columns.IndexOf("SECID");
-            var lastIdx = columns.IndexOf("LAST");
-            var faceValueIdx = isBond ? columns.IndexOf("FACEVALUE") : -1;
-            var aciIdx = isBond ? columns.IndexOf("ACCRUEDINT") : -1;
-
-            if (secIdIdx < 0 || lastIdx < 0) return;
-
-            foreach (var row in secElement.GetProperty("data").EnumerateArray())
+            if (document.RootElement.TryGetProperty("marketdata", out var mdElement))
             {
-                var ticker = row[secIdIdx].GetString();
-                if (string.IsNullOrEmpty(ticker) || row[lastIdx].ValueKind == JsonValueKind.Null) continue;
+                var columns = mdElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
+                var secIdIdx = columns.IndexOf("SECID");
+                var lastIdx = columns.IndexOf("LAST");
 
-                decimal lastPrice = row[lastIdx].GetDecimal();
-                decimal faceValue = 1m;
-                decimal aci = 0m;
-
-                if (isBond && faceValueIdx >= 0 && row[faceValueIdx].ValueKind != JsonValueKind.Null)
+                if (secIdIdx >= 0 && lastIdx >= 0)
                 {
-                    faceValue = row[faceValueIdx].GetDecimal();
+                    foreach (var row in mdElement.GetProperty("data").EnumerateArray())
+                    {
+                        var ticker = row[secIdIdx].GetString();
+                        if (string.IsNullOrEmpty(ticker) || row[lastIdx].ValueKind == JsonValueKind.Null) continue;
+                        prices[ticker] = row[lastIdx].GetDecimal();
+                    }
                 }
+            }
 
-                if (isBond && aciIdx >= 0 && row[aciIdx].ValueKind != JsonValueKind.Null)
+            if (document.RootElement.TryGetProperty("securities", out var secElement))
+            {
+                var columns = secElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
+                var secIdIdx = columns.IndexOf("SECID");
+                var faceValueIdx = isBond ? columns.IndexOf("FACEVALUE") : -1;
+                var aciIdx = isBond ? columns.IndexOf("ACCRUEDINT") : -1;
+
+                if (secIdIdx >= 0)
                 {
-                    aci = row[aciIdx].GetDecimal();
-                }
+                    foreach (var row in secElement.GetProperty("data").EnumerateArray())
+                    {
+                        var ticker = row[secIdIdx].GetString();
+                        if (string.IsNullOrEmpty(ticker) || !prices.TryGetValue(ticker, out var lastPrice)) continue;
 
-                // Перезаписываем, если нашли цену на этой площадке (если тикер есть и на TQOB и на TQCB — возьмет последнюю найденную)
-                result[ticker] = new MoexCurrentQuoteDto(ticker, lastPrice, faceValue, aci);
+                        decimal faceValue = 1m;
+                        decimal aci = 0m;
+
+                        if (isBond && faceValueIdx >= 0 && row[faceValueIdx].ValueKind != JsonValueKind.Null)
+                        {
+                            faceValue = row[faceValueIdx].GetDecimal();
+                        }
+
+                        if (isBond && aciIdx >= 0 && row[aciIdx].ValueKind != JsonValueKind.Null)
+                        {
+                            aci = row[aciIdx].GetDecimal();
+                        }
+
+                        result[ticker] = new MoexCurrentQuoteDto(ticker, lastPrice, faceValue, aci);
+                    }
+                }
             }
         }
         catch (Exception)
         {
-            // MOEX иногда возвращает 503 или рвет соединение. Глотаем ошибку, 
-            // не найденные котировки просто не попадут в словарь.
+            // MOEX иногда возвращает 503 или рвет соединение. Глотаем ошибку.
         }
     }
 
