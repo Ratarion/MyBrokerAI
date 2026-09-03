@@ -149,7 +149,9 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             if (result == ClassificationResult.Unrecognized)
             {
                 unrecognized.Add(description);
-                continue;
+                // Не пропускаем — записываем как пополнение/списание, чтобы баланс сходился.
+                // Пользователь увидит описание в списке предупреждений.
+                type = credit > 0 ? TransactionType.Deposit : TransactionType.Withdrawal;
             }
 
             string? securityCode = null;
