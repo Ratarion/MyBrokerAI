@@ -105,6 +105,9 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
             imported++;
         }
 
+        // Предупреждения из хендлера (дополняют parser.UnrecognizedDescriptions)
+        var handlerWarnings = new List<string>();
+
         foreach (var cashFlow in report.CashFlows)
         {
             if (!existingExternalIds.Add(cashFlow.ExternalId))
@@ -120,12 +123,27 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
                 assetId = asset.Id;
             }
 
+            var effectiveType = cashFlow.Type;
+
+            // Дивиденд/купон без привязки к активу нарушает доменный инвариант.
+            // Такое бывает, когда бумага куплена до начала периода отчёта и в описании нет ISIN —
+            // мы не можем определить, к какому активу относится выплата.
+            // Решение: записываем как Deposit (деньги приходят корректно), а описание
+            // добавляем в предупреждения — пользователь видит, что именно не привязалось.
+            if (assetId is null
+                && cashFlow.Type is TransactionType.Dividend or TransactionType.Coupon)
+            {
+                effectiveType = TransactionType.Deposit;
+                handlerWarnings.Add(
+                    $"Не удалось привязать к активу — записано как пополнение: «{cashFlow.Description}»");
+            }
+
             // У чисто денежных операций (Deposit/Withdrawal/Tax/Dividend/Coupon) в модели нет
             // отдельного поля "сумма" — используем Quantity=1, Price=сумма операции. Осознанный
             // выбор в рамках текущей схемы Transaction (стоимость = Price × Quantity), не баг.
             portfolio.AddTransaction(
                 assetId,
-                cashFlow.Type,
+                effectiveType,
                 quantity: 1,
                 price: new Money(cashFlow.Amount, cashFlow.Currency),
                 fee: Money.Zero(cashFlow.Currency),
@@ -137,7 +155,11 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        return new ImportReportResultDto(imported, skippedDuplicates, assetsCreated, report.UnrecognizedDescriptions);
+        var allUnrecognized = report.UnrecognizedDescriptions
+            .Concat(handlerWarnings)
+            .ToList();
+
+        return new ImportReportResultDto(imported, skippedDuplicates, assetsCreated, allUnrecognized);
     }
 
     private static bool LooksLikeIsin(string code) =>
