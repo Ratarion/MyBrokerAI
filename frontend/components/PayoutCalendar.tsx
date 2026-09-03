@@ -21,10 +21,31 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("Текущий год");
   const [viewMode, setViewMode] = useState<"calendar" | "list">("list");
   
-  // Extract all relevant income transactions
+  // Extract all relevant income transactions and generate TTM forecast
   const allIncomeTxs = useMemo(() => {
-    return transactions
+    const pastTxs = transactions
       .filter((tx) => tx.type === "Dividend" || tx.type === "Coupon" || tx.type === "Tax")
+      .map(tx => ({ ...tx, status: tx.type === "Tax" ? "Удержан" : "Выплачены" }));
+      
+    // Generate TTM Forecast (Прогноз) based on past 12 months
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    
+    const forecasts = pastTxs
+      .filter(tx => tx.type !== "Tax") // Don't forecast taxes directly in the chart as income
+      .filter(tx => new Date(tx.executedAt) >= oneYearAgo && new Date(tx.executedAt) <= now)
+      .map(tx => {
+        const forecastDate = new Date(tx.executedAt);
+        forecastDate.setFullYear(forecastDate.getFullYear() + 1);
+        return {
+          ...tx,
+          id: `forecast-${tx.id}`,
+          executedAt: forecastDate.toISOString(),
+          status: "Прогноз"
+        };
+      });
+
+    return [...pastTxs, ...forecasts]
       .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
   }, [transactions]);
 
@@ -49,14 +70,20 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
   }, [allIncomeTxs, selectedPeriod]);
 
   // Group and calculate stats
-  const { totalAmount, groupedByMonth, chartData, avgPerMonth } = useMemo(() => {
+  const { totalAmount, totalForecast, groupedByMonth, chartData, avgPerMonth } = useMemo(() => {
     let total = 0;
-    const groups: Record<string, { monthDate: Date, total: number, txs: TransactionDto[] }> = {};
+    let forecastTotal = 0;
+    const groups: Record<string, { monthDate: Date, total: number, txs: any[] }> = {};
 
     filteredTxs.forEach((tx) => {
       const isTax = tx.type === "Tax";
       const amount = isTax ? -tx.priceAmount : tx.priceAmount;
-      total += amount;
+      
+      if (tx.status === "Прогноз") {
+        forecastTotal += amount;
+      } else {
+        total += amount;
+      }
 
       const date = new Date(tx.executedAt);
       const year = date.getFullYear();
@@ -88,22 +115,56 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
 
     // Chart data (12 months of the selected year)
     let chartYear = new Date().getFullYear();
-    if (selectedPeriod !== "Текущий год" && selectedPeriod !== "На год вперед") {
+    let isNextYear = false;
+    
+    if (selectedPeriod === "На год вперед") {
+       // For 'На год вперед', we chart the next 12 months starting from current month
+       const chart = [];
+       const currentMonth = new Date().getMonth();
+       const currentYear = new Date().getFullYear();
+       
+       for (let i = 0; i < 12; i++) {
+         const m = (currentMonth + i) % 12;
+         const y = currentYear + Math.floor((currentMonth + i) / 12);
+         const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+         const g = groups[key];
+         
+         const paid = g ? g.txs.filter(t => t.status === "Выплачены" || t.status === "Удержан").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
+         const forecast = g ? g.txs.filter(t => t.status === "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
+         
+         chart.push({
+           name: MONTH_NAMES[m],
+           Выплачены: paid,
+           Прогноз: forecast
+         });
+       }
+       
+       const avg = (total + forecastTotal) / 12;
+       return { totalAmount: total, totalForecast: forecastTotal, groupedByMonth: groupedList, chartData: chart, avgPerMonth: avg };
+    }
+
+    if (selectedPeriod !== "Текущий год") {
       chartYear = parseInt(selectedPeriod);
     }
     
     const chart = [];
     for (let i = 0; i < 12; i++) {
       const key = `${chartYear}-${String(i + 1).padStart(2, "0")}`;
+      const g = groups[key];
+      
+      const paid = g ? g.txs.filter(t => t.status === "Выплачены" || t.status === "Удержан").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
+      const forecast = g ? g.txs.filter(t => t.status === "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
+      
       chart.push({
         name: MONTH_NAMES[i],
-        Выплачены: groups[key] ? groups[key].total : 0,
+        Выплачены: paid,
+        Прогноз: forecast
       });
     }
 
-    const avg = total / 12;
+    const avg = (total + forecastTotal) / 12;
 
-    return { totalAmount: total, groupedByMonth: groupedList, chartData: chart, avgPerMonth: avg };
+    return { totalAmount: total, totalForecast: forecastTotal, groupedByMonth: groupedList, chartData: chart, avgPerMonth: avg };
   }, [filteredTxs, selectedPeriod]);
 
   return (
@@ -148,10 +209,10 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
         <div className="bg-[#1E2329] border border-surface-border rounded-2xl p-6 flex flex-col justify-between shadow-sm">
           <div className="text-center mt-2">
             <p className="text-sm font-medium text-muted flex items-center justify-center gap-1">
-              Всего за год <span className="text-[10px] w-4 h-4 rounded-full border border-muted inline-flex items-center justify-center">?</span>
+              Всего за год <span className="text-[10px] w-4 h-4 rounded-full border border-muted inline-flex items-center justify-center cursor-help" title="Основано на TTM за последние 12 мес.">?</span>
             </p>
             <p className="text-3xl font-[family-name:var(--font-display)] font-semibold mt-2 text-foreground tracking-tight">
-              {totalAmount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+              {(totalAmount + totalForecast).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
             </p>
           </div>
           
@@ -170,9 +231,9 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted flex items-center gap-2">
-                <span className="text-[#8b5cf6]">⏱️</span> Ожидает получения
+                <span className="text-[#8b5cf6]">⏱️</span> Прогноз (TTM)
               </span>
-              <span className="font-medium text-foreground">0,00 ₽</span>
+              <span className="font-medium text-foreground">{totalForecast.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽</span>
             </div>
           </div>
         </div>
@@ -183,16 +244,17 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#8b949e" }} tickLine={false} axisLine={false} dy={10} />
-                {chartData.some(d => d.Выплачены > 0) && (
+                {chartData.some(d => d.Выплачены > 0 || d.Прогноз > 0) && (
                   <ReferenceLine y={avgPerMonth} stroke="#0ea5e9" strokeDasharray="3 3" label={{ position: 'right', value: 'средн.', fill: '#0ea5e9', fontSize: 10 }} />
                 )}
                 <Tooltip
                   cursor={{ fill: "rgba(255,255,255,0.05)" }}
                   contentStyle={{ backgroundColor: "#2A2F35", borderColor: "#414853", borderRadius: "8px", color: "#fff" }}
                   itemStyle={{ fontSize: "14px", fontWeight: "bold" }}
-                  formatter={(val: any) => [`${Number(val).toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽`, "Выплачены"]}
+                  formatter={(val: any, name: any) => [`${Number(val).toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽`, name]}
                 />
-                <Bar dataKey="Выплачены" fill="#9D4EDD" radius={[4, 4, 4, 4]} barSize={16} />
+                <Bar dataKey="Выплачены" stackId="a" fill="#9D4EDD" radius={[0, 0, 4, 4]} barSize={16} />
+                <Bar dataKey="Прогноз" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -237,12 +299,12 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                 </div>
                 
                 <div className="flex flex-col gap-2">
-                  {group.transactions.map((tx) => {
+                  {group.transactions.map((tx: any) => {
                     const isTax = tx.type === "Tax";
                     const isCoupon = tx.type === "Coupon";
+                    const isForecast = tx.status === "Прогноз";
                     const amount = isTax ? -tx.priceAmount : tx.priceAmount;
                     const dateStr = formatDateTime(tx.executedAt).split(",")[0];
-                    // Example format: "10 янв. 26"
                     const dateObj = new Date(tx.executedAt);
                     const formattedDate = `${dateObj.getDate()} ${MONTH_NAMES[dateObj.getMonth()]} ${dateObj.getFullYear().toString().slice(-2)}`;
 
@@ -264,8 +326,8 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                         <div className="flex flex-col w-[150px]">
                           <span className="text-sm font-medium text-foreground">{formattedDate}</span>
                           <span className="text-xs text-muted flex items-center gap-1 mt-0.5">
-                            <span className={`w-1.5 h-1.5 rounded-full ${isTax ? "bg-danger" : "bg-[#9D4EDD]"}`}></span>
-                            {isTax ? "Удержан" : "Получены"} {formattedDate}
+                            <span className={`w-1.5 h-1.5 rounded-full ${isTax ? "bg-danger" : isForecast ? "bg-[#3b82f6]" : "bg-[#9D4EDD]"}`}></span>
+                            {tx.status} {formattedDate}
                           </span>
                         </div>
 
