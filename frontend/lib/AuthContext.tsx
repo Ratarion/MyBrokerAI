@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { API_URL } from "./api";
 import { type AuthTokens, clearTokens, loadTokens, saveTokens } from "./auth";
 
@@ -53,7 +53,7 @@ export function useAuth(): AuthContextValue {
 export function useAuthFetch() {
   const { tokens, login, logout } = useAuth();
 
-  return async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return useCallback(async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
     if (!tokens) {
       throw new Error("Нет активной сессии");
     }
@@ -90,5 +90,5 @@ export function useAuthFetch() {
     }
 
     return response;
-  };
+  }, [tokens, login, logout]);
 }

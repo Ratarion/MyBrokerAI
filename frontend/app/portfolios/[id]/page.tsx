@@ -86,14 +86,13 @@ export default function PortfolioDetailsPage() {
         message: error instanceof Error ? error.message : "Неизвестная ошибка",
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+  }, [params.id, authFetch]);
 
   useEffect(() => {
     if (!tokens) return;
     loadPortfolio();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokens, params.id]);
+    loadMarketValue();
+  }, [tokens, loadPortfolio, loadMarketValue]);
 
   async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
