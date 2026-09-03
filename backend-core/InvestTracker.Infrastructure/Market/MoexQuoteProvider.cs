@@ -1,6 +1,7 @@
 using System.Text.Json;
 using InvestTracker.Application.Common.Interfaces;
 using InvestTracker.Application.Market.Dtos;
+using InvestTracker.Domain.Enums;
 
 namespace InvestTracker.Infrastructure.Market;
 
@@ -55,7 +56,6 @@ public class MoexQuoteProvider : IMoexQuoteProvider
 
         if (openIndex < 0 || closeIndex < 0 || highIndex < 0 || lowIndex < 0 || volumeIndex < 0 || beginIndex < 0)
         {
-            // Формат ответа ISS неожиданно изменился — лучше вернуть пусто, чем упасть с IndexOutOfRange.
             return [];
         }
 
@@ -65,7 +65,6 @@ public class MoexQuoteProvider : IMoexQuoteProvider
         {
             var beginRaw = row[beginIndex].GetString();
 
-            // MOEX отдаёт "2026-08-20 00:00:00" — берём только дату.
             if (beginRaw is null || !DateOnly.TryParse(beginRaw.Split(' ')[0], out var date))
             {
                 continue;
@@ -81,6 +80,91 @@ public class MoexQuoteProvider : IMoexQuoteProvider
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyDictionary<string, MoexCurrentQuoteDto>> GetCurrentPricesAsync(
+        IEnumerable<(string Ticker, AssetType AssetType)> instruments,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, MoexCurrentQuoteDto>(StringComparer.OrdinalIgnoreCase);
+        var instrumentList = instruments.ToList();
+        
+        if (instrumentList.Count == 0) return result;
+
+        var stocks = instrumentList.Where(i => i.AssetType is AssetType.Stock or AssetType.Etf).Select(i => i.Ticker).ToList();
+        var bonds = instrumentList.Where(i => i.AssetType is AssetType.Bond).Select(i => i.Ticker).ToList();
+
+        if (stocks.Count > 0)
+        {
+            // Акции (TQBR)
+            string securitiesParam = string.Join(",", stocks);
+            var url = $"iss/engines/stock/markets/shares/boards/TQBR/securities.json?securities={securitiesParam}&columns=SECID,LAST&iss.meta=off&iss.only=securities";
+            await FetchAndParseMarketData(url, false, result, cancellationToken);
+        }
+
+        if (bonds.Count > 0)
+        {
+            // ОФЗ (TQOB)
+            string securitiesParam = string.Join(",", bonds);
+            var tqobUrl = $"iss/engines/stock/markets/bonds/boards/TQOB/securities.json?securities={securitiesParam}&columns=SECID,LAST,FACEVALUE,ACCRUEDINT&iss.meta=off&iss.only=securities";
+            await FetchAndParseMarketData(tqobUrl, true, result, cancellationToken);
+            
+            // Корпоративные облигации (TQCB). MOEX не вернет ошибку, если в запросе будут тикеры, которых нет на TQCB.
+            var tqcbUrl = $"iss/engines/stock/markets/bonds/boards/TQCB/securities.json?securities={securitiesParam}&columns=SECID,LAST,FACEVALUE,ACCRUEDINT&iss.meta=off&iss.only=securities";
+            await FetchAndParseMarketData(tqcbUrl, true, result, cancellationToken);
+        }
+
+        return result;
+    }
+
+    private async Task FetchAndParseMarketData(string url, bool isBond, Dictionary<string, MoexCurrentQuoteDto> result, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await _httpClient.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode) return;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+            if (!document.RootElement.TryGetProperty("securities", out var secElement)) return;
+
+            var columns = secElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
+            var secIdIdx = columns.IndexOf("SECID");
+            var lastIdx = columns.IndexOf("LAST");
+            var faceValueIdx = isBond ? columns.IndexOf("FACEVALUE") : -1;
+            var aciIdx = isBond ? columns.IndexOf("ACCRUEDINT") : -1;
+
+            if (secIdIdx < 0 || lastIdx < 0) return;
+
+            foreach (var row in secElement.GetProperty("data").EnumerateArray())
+            {
+                var ticker = row[secIdIdx].GetString();
+                if (string.IsNullOrEmpty(ticker) || row[lastIdx].ValueKind == JsonValueKind.Null) continue;
+
+                decimal lastPrice = row[lastIdx].GetDecimal();
+                decimal faceValue = 1m;
+                decimal aci = 0m;
+
+                if (isBond && faceValueIdx >= 0 && row[faceValueIdx].ValueKind != JsonValueKind.Null)
+                {
+                    faceValue = row[faceValueIdx].GetDecimal();
+                }
+
+                if (isBond && aciIdx >= 0 && row[aciIdx].ValueKind != JsonValueKind.Null)
+                {
+                    aci = row[aciIdx].GetDecimal();
+                }
+
+                // Перезаписываем, если нашли цену на этой площадке (если тикер есть и на TQOB и на TQCB — возьмет последнюю найденную)
+                result[ticker] = new MoexCurrentQuoteDto(ticker, lastPrice, faceValue, aci);
+            }
+        }
+        catch (Exception)
+        {
+            // MOEX иногда возвращает 503 или рвет соединение. Глотаем ошибку, 
+            // не найденные котировки просто не попадут в словарь.
+        }
     }
 
     private static (string Engine, string Market, string Board) ResolveMarket(string ticker) =>

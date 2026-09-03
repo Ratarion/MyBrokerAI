@@ -4,6 +4,7 @@ using InvestTracker.Application.Imports.Dtos;
 using InvestTracker.Application.Portfolios.Commands.CreatePortfolio;
 using InvestTracker.Application.Portfolios.Dtos;
 using InvestTracker.Application.Portfolios.Queries.GetPortfolioById;
+using InvestTracker.Application.Portfolios.Queries.GetPortfolioMarketValue;
 using InvestTracker.Application.Portfolios.Queries.GetPortfolios;
 using InvestTracker.Application.Transactions.Commands.AddTransaction;
 using InvestTracker.WebApi.Common;
@@ -164,3 +165,4 @@ public static class PortfolioEndpoints
         return app;
     }
 }
+
