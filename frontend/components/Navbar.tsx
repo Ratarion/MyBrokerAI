@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -61,10 +61,14 @@ export function Navbar() {
                   Портфель
                   <span className="text-[10px]">▼</span>
                 </button>
-                <div className="absolute left-0 top-full mt-0 w-48 bg-[#1E2329] border border-surface-border rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1">
-                  <Link href={"/portfolios/" + currentPortfolioId} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Активы (Обзор)</Link>
+                <div className="absolute left-0 top-full mt-0 w-56 bg-[#1E2329] border border-surface-border rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1">
+                  <Link href={"/portfolios/" + currentPortfolioId} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Активы</Link>
                   <Link href={"/portfolios/" + currentPortfolioId + "/operations"} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Операции</Link>
                   <Link href={"/portfolios/" + currentPortfolioId + "/payouts"} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Календарь выплат</Link>
+                  <Link href={"/portfolios/" + currentPortfolioId + "/goal"} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Моя цель</Link>
+                  <Link href={"/portfolios/" + currentPortfolioId + "/currency"} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Валюта</Link>
+                  <Link href={"/portfolios/" + currentPortfolioId + "/categories"} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Категории</Link>
+                  <Link href={"/portfolios/" + currentPortfolioId + "/corporate-actions"} className="block px-4 py-2 text-sm text-muted hover:text-foreground hover:bg-[#2A2F35]">Корпоративные действия</Link>
                 </div>
               </div>
 
