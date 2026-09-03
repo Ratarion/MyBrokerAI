@@ -88,6 +88,7 @@ public static class PortfolioCalculator
 
                 case TransactionType.Dividend:
                 case TransactionType.Coupon:
+                case TransactionType.Amortization:
                     // Quantity=1, Price=сумма. Зачисляются деньгами (актив не меняется).
                     AddCash(cash, tx.PriceCurrency, tx.PriceAmount);
                     break;

@@ -68,7 +68,9 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             var currency = ParseCurrency(Text(cells[5]));
             var side = Text(cells[6]);
             var quantity = ParseDecimal(Text(cells[7]));
-            var price = ParseDecimal(Text(cells[8]));
+            var amount = ParseDecimal(Text(cells[9]));
+            var nkd = ParseDecimal(Text(cells[10]));
+            var price = quantity > 0 ? (amount + nkd) / quantity : ParseDecimal(Text(cells[8]));
             var brokerFee = ParseDecimal(Text(cells[11]));
             var exchangeFee = ParseDecimal(Text(cells[12]));
             var tradeNumber = Text(cells[13]);
@@ -224,7 +226,7 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             return (ClassificationResult.Recognized, TransactionType.Coupon, m.Groups["name"].Value.Trim(), null);
         }
 
-        if (DepositRegex().IsMatch(description))
+        if (DepositRegex().IsMatch(description) || PromoRegex().IsMatch(description))
         {
             return (ClassificationResult.Recognized, TransactionType.Deposit, null, null);
         }
@@ -286,6 +288,9 @@ public partial class SberHtmlReportParser : IBrokerReportParser
 
     [GeneratedRegex(@"^Зачисление д/с(\s*\(.*\))?$")]
     private static partial Regex DepositRegex();
+
+    [GeneratedRegex(@"^Выплата участнику акции")]
+    private static partial Regex PromoRegex();
 
     [GeneratedRegex(@"^Списание д/с\. Налог")]
     private static partial Regex TaxRegex();
