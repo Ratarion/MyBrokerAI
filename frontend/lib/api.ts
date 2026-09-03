@@ -37,6 +37,8 @@ export interface PortfolioListItem {
 export interface TransactionDto {
   id: string;
   assetId: string | null;
+  assetTicker?: string;
+  assetName?: string;
   type: TransactionType;
   quantity: number;
   priceAmount: number;

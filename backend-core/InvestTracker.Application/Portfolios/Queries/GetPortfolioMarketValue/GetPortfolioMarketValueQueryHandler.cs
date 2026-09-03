@@ -50,9 +50,13 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
         // Используем существующий калькулятор для получения количества и средней цены
         var transactionsAsc = portfolio.Transactions
             .OrderBy(t => t.ExecutedAt)
-            .Select(t => new TransactionDto(
-                t.Id, t.AssetId, t.Type, t.Quantity, t.Price.Amount, t.Price.Currency,
-                t.Fee.Amount, t.Fee.Currency, t.ExecutedAt, t.Notes))
+            .Select(t =>
+            {
+                assetsById.TryGetValue(t.AssetId ?? Guid.Empty, out var asset);
+                return new TransactionDto(
+                    t.Id, t.AssetId, asset?.Ticker, asset?.Name, t.Type, t.Quantity, t.Price.Amount, t.Price.Currency,
+                    t.Fee.Amount, t.Fee.Currency, t.ExecutedAt, t.Notes);
+            })
             .ToList();
 
         var (holdingsBase, _) = PortfolioCalculator.Calculate(transactionsAsc, assetsById);

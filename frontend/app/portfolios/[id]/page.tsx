@@ -43,6 +43,7 @@ export default function PortfolioDetailsPage() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [importState, setImportState] = useState<ImportState>({ status: "idle" });
   const [marketState, setMarketState] = useState<MarketState>({ status: "idle" });
+  const [activeTab, setActiveTab] = useState<"assets" | "income">("assets");
 
   useEffect(() => {
     if (isReady && !tokens) {
@@ -224,7 +225,34 @@ export default function PortfolioDetailsPage() {
               </div>
             )}
 
-            {/* ── Денежный баланс ─────────────────────────────── */}
+            
+            {/* ── Tabs ─────────────────────────────── */}
+            <div className="mt-8 flex gap-4 border-b border-surface-border">
+              <button
+                className={`pb-2 text-sm font-medium transition-colors ${
+                  activeTab === "assets"
+                    ? "border-b-2 border-foreground text-foreground"
+                    : "text-muted hover:text-foreground"
+                }`}
+                onClick={() => setActiveTab("assets")}
+              >
+                Активы
+              </button>
+              <button
+                className={`pb-2 text-sm font-medium transition-colors ${
+                  activeTab === "income"
+                    ? "border-b-2 border-foreground text-foreground"
+                    : "text-muted hover:text-foreground"
+                }`}
+                onClick={() => setActiveTab("income")}
+              >
+                Пассивный доход
+              </button>
+            </div>
+
+            {activeTab === "assets" && (
+              <>
+{/* ── Денежный баланс ─────────────────────────────── */}
             {state.portfolio.cashBalances.length > 0 && (
               <>
                 <h2 className="mt-8 text-xs font-medium tracking-[0.15em] text-muted uppercase">
@@ -352,7 +380,114 @@ export default function PortfolioDetailsPage() {
               )}
             </div>
 
-            <h2 className="mt-10 text-xs font-medium tracking-[0.15em] text-muted uppercase">
+            
+              </>
+            )}
+
+            {activeTab === "income" && (
+              <>
+                {(() => {
+                  const incomeTxs = state.portfolio.transactions.filter(
+                    (tx) => tx.type === "Dividend" || tx.type === "Coupon" || tx.type === "Tax"
+                  );
+                  
+                  const totalDividends = incomeTxs
+                    .filter((t) => t.type === "Dividend")
+                    .reduce((sum, t) => sum + t.priceAmount, 0);
+                  const totalCoupons = incomeTxs
+                    .filter((t) => t.type === "Coupon")
+                    .reduce((sum, t) => sum + t.priceAmount, 0);
+                  const totalTaxes = incomeTxs
+                    .filter((t) => t.type === "Tax")
+                    .reduce((sum, t) => sum + t.priceAmount, 0);
+                  
+                  const netIncome = totalDividends + totalCoupons - totalTaxes;
+
+                  return (
+                    <div className="mt-6">
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                        <div className="rounded-xl border border-surface-border bg-surface p-4">
+                          <p className="text-xs text-muted uppercase">Дивиденды</p>
+                          <p className="mt-1 font-mono text-xl text-success">
+                            +{totalDividends.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-surface-border bg-surface p-4">
+                          <p className="text-xs text-muted uppercase">Купоны</p>
+                          <p className="mt-1 font-mono text-xl text-success">
+                            +{totalCoupons.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-surface-border bg-surface p-4">
+                          <p className="text-xs text-muted uppercase">Налоги</p>
+                          <p className="mt-1 font-mono text-xl text-danger">
+                            -{totalTaxes.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-surface-border bg-surface p-4">
+                          <p className="text-xs text-muted uppercase">Чистый доход</p>
+                          <p className={`mt-1 font-mono text-xl ${netIncome >= 0 ? "text-success" : "text-danger"}`}>
+                            {netIncome >= 0 ? "+" : ""}{netIncome.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+
+                      <h2 className="mt-8 mb-4 text-xs font-medium tracking-[0.15em] text-muted uppercase">
+                        История выплат
+                      </h2>
+                      
+                      {incomeTxs.length === 0 ? (
+                        <div className="mt-4 rounded-2xl border border-dashed border-surface-border p-8 text-center">
+                          <p className="text-sm text-muted">Нет данных о дивидендах, купонах или налогах.</p>
+                        </div>
+                      ) : (
+                        <div className="mt-4 overflow-x-auto rounded-xl border border-surface-border">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-surface-border bg-surface">
+                                <th className="px-4 py-2.5 text-left font-medium text-muted">Дата</th>
+                                <th className="px-4 py-2.5 text-left font-medium text-muted">Тип</th>
+                                <th className="px-4 py-2.5 text-left font-medium text-muted">Актив</th>
+                                <th className="px-4 py-2.5 text-right font-medium text-muted">Сумма</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {incomeTxs.map((tx, i) => (
+                                <tr
+                                  key={tx.id}
+                                  className={
+                                    "border-b border-surface-border last:border-0 " +
+                                    (i % 2 === 0 ? "bg-surface" : "bg-transparent")
+                                  }
+                                >
+                                  <td className="px-4 py-3 text-foreground whitespace-nowrap">
+                                    {formatDateTime(tx.executedAt).split(',')[0]}
+                                  </td>
+                                  <td className="px-4 py-3 text-muted">
+                                    {TRANSACTION_TYPE_LABELS[tx.type]}
+                                  </td>
+                                  <td className="px-4 py-3 text-foreground font-mono">
+                                    {tx.assetTicker || <span className="text-muted">—</span>}
+                                    {tx.assetName && <span className="ml-2 font-sans text-muted truncate max-w-[150px] inline-block align-bottom">{tx.assetName}</span>}
+                                  </td>
+                                  <td className={`px-4 py-3 text-right font-mono font-medium ${
+                                    tx.type === "Tax" ? "text-danger" : "text-success"
+                                  }`}>
+                                    {tx.type === "Tax" ? "-" : "+"}{tx.priceAmount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {tx.priceCurrency}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+
+<h2 className="mt-10 text-xs font-medium tracking-[0.15em] text-muted uppercase">
               Транзакции
             </h2>
 

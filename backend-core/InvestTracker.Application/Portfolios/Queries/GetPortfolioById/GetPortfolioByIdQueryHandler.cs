@@ -19,30 +19,8 @@ public class GetPortfolioByIdQueryHandler : IRequestHandler<GetPortfolioByIdQuer
     public async Task<PortfolioDetailsDto> Handle(GetPortfolioByIdQuery request, CancellationToken cancellationToken)
     {
         var portfolio = await _context.Portfolios
-            .Where(p => p.Id == request.PortfolioId)
-            .Select(p => new
-            {
-                p.Id,
-                p.UserId,
-                p.Name,
-                p.BaseCurrency,
-                p.CreatedAt,
-                Transactions = p.Transactions
-                    .OrderByDescending(t => t.ExecutedAt)
-                    .Select(t => new TransactionDto(
-                        t.Id,
-                        t.AssetId,
-                        t.Type,
-                        t.Quantity,
-                        t.Price.Amount,
-                        t.Price.Currency,
-                        t.Fee.Amount,
-                        t.Fee.Currency,
-                        t.ExecutedAt,
-                        t.Notes))
-                    .ToList(),
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Include(p => p.Transactions)
+            .FirstOrDefaultAsync(p => p.Id == request.PortfolioId, cancellationToken);
 
         if (portfolio is null)
         {
@@ -64,11 +42,30 @@ public class GetPortfolioByIdQueryHandler : IRequestHandler<GetPortfolioByIdQuer
                 a => new AssetSummary(a.Ticker, a.Name, a.Type),
                 cancellationToken);
 
+        var transactionsDto = portfolio.Transactions
+            .OrderByDescending(t => t.ExecutedAt)
+            .Select(t =>
+            {
+                assetsById.TryGetValue(t.AssetId ?? Guid.Empty, out var asset);
+                return new TransactionDto(
+                    t.Id,
+                    t.AssetId,
+                    asset?.Ticker,
+                    asset?.Name,
+                    t.Type,
+                    t.Quantity,
+                    t.Price.Amount,
+                    t.Price.Currency,
+                    t.Fee.Amount,
+                    t.Fee.Currency,
+                    t.ExecutedAt,
+                    t.Notes);
+            })
+            .ToList();
+
         // Вычисляем открытые позиции и денежный баланс методом средневзвешенной цены.
         // Для расчёта нужны транзакции в хронологическом порядке (ASC).
-        var transactionsAsc = portfolio.Transactions
-            .OrderBy(t => t.ExecutedAt)
-            .ToList();
+        var transactionsAsc = transactionsDto.OrderBy(t => t.ExecutedAt).ToList();
 
         var (holdings, cashBalances) = PortfolioCalculator.Calculate(transactionsAsc, assetsById);
 
@@ -78,7 +75,7 @@ public class GetPortfolioByIdQueryHandler : IRequestHandler<GetPortfolioByIdQuer
             portfolio.Name,
             portfolio.BaseCurrency,
             portfolio.CreatedAt,
-            portfolio.Transactions,
+            transactionsDto,
             holdings,
             cashBalances);
     }
