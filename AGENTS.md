@@ -53,6 +53,9 @@ InvestTracker.WebApi          — Minimal API эндпоинты, DI wiring в P
 
 - **.NET 10 SDK.** `dotnet new sln` создаёт `.slnx` (новый XML-формат) по умолчанию — это нормально,
   не баг. Собирать: `dotnet build backend-core/InvestTracker.slnx`.
+- **Запуск WebApi в dev:** `dotnet run --project backend-core/InvestTracker.WebApi --launch-profile http`.
+  Важно использовать `--launch-profile http` (порт 5030), чтобы `UseHttpsRedirection()` не отправлял
+  CORS-запросы фронтенда на `https://localhost:7017`.
 - **EF Core миграции** — обязательно оба флага:
   `dotnet ef migrations add ИмяМиграции --project backend-core/InvestTracker.Infrastructure --startup-project backend-core/InvestTracker.WebApi`,
   аналогично для `database update`.
@@ -84,3 +87,6 @@ InvestTracker.WebApi          — Minimal API эндпоинты, DI wiring в P
   стоит туда добавить.
 - `Transaction.ExternalId` — дедупликация при импорте отчётов (уникален в пределах портфеля, когда
   задан; `null` для транзакций, созданных вручную).
+- `MoexQuoteProvider` — сейчас запрашивает дневные свечи только с площадки акций (board `TQBR`)
+  или основных индексов (`SNDX`). Облигации (`TQOB`/`TQCB`) и фонды с других площадок пока
+  не поддержаны в авто-резолвинге рынка.
