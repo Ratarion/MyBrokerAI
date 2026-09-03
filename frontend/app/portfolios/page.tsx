@@ -138,7 +138,10 @@ export default function PortfoliosPage() {
                       · создан {formatDateTime(portfolio.createdAt)}
                     </p>
                   </div>
-                  <span className="font-mono text-xs text-muted">{portfolio.baseCurrency}</span>
+                  <div className="flex flex-col items-end">
+                    <PortfolioMarketValueIndicator id={portfolio.id} />
+                    <span className="font-mono text-xs text-muted">{portfolio.baseCurrency}</span>
+                  </div>
                 </Link>
               </li>
             ))}
@@ -222,5 +225,44 @@ function CreatePortfolioForm({ onCreated }: { onCreated: (portfolio: PortfolioLi
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
     </form>
+  );
+}
+
+function PortfolioMarketValueIndicator({ id }: { id: string }) {
+  const authFetch = useAuthFetch();
+  const [value, setValue] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    authFetch(`/api/portfolios/${id}/market-value`)
+      .then((res) => {
+        if (!res.ok) throw new Error("err");
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setValue(data.totalMarketValue);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [id, authFetch]);
+
+  if (loading) {
+    return <span className="font-mono text-sm text-muted animate-pulse">…</span>;
+  }
+  
+  if (value === null) {
+    return <span className="font-mono text-sm text-muted">—</span>;
+  }
+
+  return (
+    <span className="font-mono font-medium text-foreground">
+      {value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </span>
   );
 }

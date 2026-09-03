@@ -26,6 +26,9 @@ public enum TransactionType
     /// <summary>Удержание налога.</summary>
     Tax,
 
+    /// <summary>Амортизация или погашение облигации.</summary>
+    Amortization,
+
     /// <summary>Конвертация валюты внутри портфеля.</summary>
     CurrencyExchange
 }

@@ -12,6 +12,7 @@ export type TransactionType =
   | "Withdrawal"
   | "Fee"
   | "Tax"
+  | "Amortization"
   | "CurrencyExchange";
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
@@ -23,6 +24,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   Withdrawal: "Вывод",
   Fee: "Комиссия",
   Tax: "Налог",
+  Amortization: "Амортизация / Погашение",
   CurrencyExchange: "Конвертация валюты",
 };
 

@@ -229,6 +229,14 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             return (ClassificationResult.Recognized, TransactionType.Deposit, null, null);
         }
 
+        m = AmortizationRegex().Match(description);
+        if (m.Success)
+        {
+            var isinGroup = m.Groups["isin"];
+            var isin = isinGroup.Success ? isinGroup.Value : null;
+            return (ClassificationResult.Recognized, TransactionType.Amortization, m.Groups["name"].Value.Trim(), isin);
+        }
+
         if (TaxRegex().IsMatch(description))
         {
             return (ClassificationResult.Recognized, TransactionType.Tax, null, null);
@@ -287,4 +295,7 @@ public partial class SberHtmlReportParser : IBrokerReportParser
 
     [GeneratedRegex(@"^(Сделка от |Комиссия Биржи от |Комиссия Брокера.* от )")]
     private static partial Regex SkipRegex();
+
+    [GeneratedRegex(@"^(?:Погашение номинальной стоимости|Амортизация|Выплата амортизации|Погашение облигаций) (?<name>.+?)(?:; ISIN (?<isin>[A-Z0-9]+))?")]
+    private static partial Regex AmortizationRegex();
 }

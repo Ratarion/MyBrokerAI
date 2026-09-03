@@ -24,8 +24,8 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
   // Extract all relevant income transactions and generate TTM forecast
   const allIncomeTxs = useMemo(() => {
     const pastTxs = transactions
-      .filter((tx) => tx.type === "Dividend" || tx.type === "Coupon" || tx.type === "Tax")
-      .map(tx => ({ ...tx, status: tx.type === "Tax" ? "Удержан" : "Выплачены" }));
+      .filter((tx) => tx.type === "Dividend" || tx.type === "Coupon" || tx.type === "Tax" || tx.type === "Amortization")
+      .map(tx => ({ ...tx, status: tx.type === "Tax" ? "Удержан" : (tx.type === "Amortization" ? "Погашения/амортизация" : "Выплачены") }));
       
     // Generate TTM Forecast (Прогноз) based on past 12 months
     const now = new Date();
@@ -130,11 +130,13 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
          const g = groups[key];
          
          const paid = g ? g.txs.filter(t => t.status === "Выплачены" || t.status === "Удержан").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
+         const amort = g ? g.txs.filter(t => t.status === "Погашения/амортизация").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
          const forecast = g ? g.txs.filter(t => t.status === "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
          
          chart.push({
            name: MONTH_NAMES[m],
            Выплачены: paid,
+           Погашения: amort,
            Прогноз: forecast
          });
        }
@@ -153,11 +155,13 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
       const g = groups[key];
       
       const paid = g ? g.txs.filter(t => t.status === "Выплачены" || t.status === "Удержан").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
+      const amort = g ? g.txs.filter(t => t.status === "Погашения/амортизация").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
       const forecast = g ? g.txs.filter(t => t.status === "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
       
       chart.push({
         name: MONTH_NAMES[i],
         Выплачены: paid,
+        Погашения: amort,
         Прогноз: forecast
       });
     }
@@ -254,6 +258,7 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                   formatter={(val: any, name: any) => [`${Number(val).toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽`, name]}
                 />
                 <Bar dataKey="Выплачены" stackId="a" fill="#9D4EDD" radius={[0, 0, 4, 4]} barSize={16} />
+                <Bar dataKey="Погашения" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="Прогноз" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -326,7 +331,7 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                         <div className="flex flex-col w-[150px]">
                           <span className="text-sm font-medium text-foreground">{formattedDate}</span>
                           <span className="text-xs text-muted flex items-center gap-1 mt-0.5">
-                            <span className={`w-1.5 h-1.5 rounded-full ${isTax ? "bg-danger" : isForecast ? "bg-[#3b82f6]" : "bg-[#9D4EDD]"}`}></span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isTax ? "bg-danger" : isForecast ? "bg-[#3b82f6]" : (tx.status === "Погашения/амортизация" ? "bg-[#f59e0b]" : "bg-[#9D4EDD]")}`}></span>
                             {tx.status} {formattedDate}
                           </span>
                         </div>
