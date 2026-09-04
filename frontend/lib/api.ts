@@ -51,6 +51,27 @@ export interface TransactionDto {
   notes: string | null;
 }
 
+export interface PortfolioPayoutItemDto {
+  id: string;
+  assetId: string | null;
+  assetTicker?: string;
+  assetName?: string;
+  type: string;
+  amount: number;
+  currency: Currency;
+  executedAt: string;
+  recordDate?: string | null;
+  status: string;
+  calculation?: string | null;
+  isFuture: boolean;
+}
+
+export interface PortfolioPayoutsScheduleDto {
+  payouts: PortfolioPayoutItemDto[];
+  totalUpcomingYear: number;
+  avgPerMonth: number;
+}
+
 export type AssetType = "Stock" | "Bond" | "Etf" | "Currency" | "Other";
 
 export const ASSET_TYPE_LABELS: Record<AssetType, string> = {

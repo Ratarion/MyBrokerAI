@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PayoutCalendar } from "@/components/PayoutCalendar";
-import { type PortfolioDetails } from "@/lib/api";
+import { type PortfolioDetails, type PortfolioPayoutsScheduleDto } from "@/lib/api";
 import { useAuth, useAuthFetch } from "@/lib/AuthContext";
 
 type LoadState =
@@ -19,6 +19,7 @@ export default function PayoutsPage() {
   const { tokens, isReady } = useAuth();
   const authFetch = useAuthFetch();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [schedule, setSchedule] = useState<PortfolioPayoutsScheduleDto | null>(null);
 
   useEffect(() => {
     if (isReady && !tokens) {
@@ -38,6 +39,17 @@ export default function PayoutsPage() {
       }
       const portfolio: PortfolioDetails = await response.json();
       setState({ status: "loaded", portfolio });
+
+      // Загружаем расписание выплат (включая будущие купоны и амортизации с MOEX)
+      try {
+        const payoutsRes = await authFetch(`/api/portfolios/${params.id}/payouts`);
+        if (payoutsRes.ok) {
+          const scheduleData: PortfolioPayoutsScheduleDto = await payoutsRes.json();
+          setSchedule(scheduleData);
+        }
+      } catch {
+        // Fallback: PayoutCalendar построит прогноз на базе transactions
+      }
     } catch (error) {
       setState({
         status: "error",
@@ -69,7 +81,7 @@ export default function PayoutsPage() {
 
         {state.status === "loaded" && (
           <div className="mt-6">
-            <PayoutCalendar transactions={state.portfolio.transactions} />
+            <PayoutCalendar transactions={state.portfolio.transactions} schedule={schedule} />
           </div>
         )}
       </div>

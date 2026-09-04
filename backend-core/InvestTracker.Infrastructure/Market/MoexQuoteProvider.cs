@@ -144,14 +144,43 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                 var columns = mdElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
                 var secIdIdx = columns.IndexOf("SECID");
                 var lastIdx = columns.IndexOf("LAST");
+                var lcurrentPriceIdx = columns.IndexOf("LCURRENTPRICE");
+                var marketPrice3Idx = columns.IndexOf("MARKETPRICE3");
+                var waPriceIdx = columns.IndexOf("WAPRICE");
 
-                if (secIdIdx >= 0 && lastIdx >= 0)
+                if (secIdIdx >= 0)
                 {
                     foreach (var row in mdElement.GetProperty("data").EnumerateArray())
                     {
                         var secId = row[secIdIdx].GetString();
-                        if (string.IsNullOrEmpty(secId) || row[lastIdx].ValueKind == JsonValueKind.Null) continue;
-                        pricesBySecId[secId] = row[lastIdx].GetDecimal();
+                        if (string.IsNullOrEmpty(secId)) continue;
+
+                        decimal? p = null;
+                        if (lastIdx >= 0 && row[lastIdx].ValueKind == JsonValueKind.Number)
+                        {
+                            var v = row[lastIdx].GetDecimal();
+                            if (v > 0) p = v;
+                        }
+                        if (p is null && lcurrentPriceIdx >= 0 && row[lcurrentPriceIdx].ValueKind == JsonValueKind.Number)
+                        {
+                            var v = row[lcurrentPriceIdx].GetDecimal();
+                            if (v > 0) p = v;
+                        }
+                        if (p is null && marketPrice3Idx >= 0 && row[marketPrice3Idx].ValueKind == JsonValueKind.Number)
+                        {
+                            var v = row[marketPrice3Idx].GetDecimal();
+                            if (v > 0) p = v;
+                        }
+                        if (p is null && waPriceIdx >= 0 && row[waPriceIdx].ValueKind == JsonValueKind.Number)
+                        {
+                            var v = row[waPriceIdx].GetDecimal();
+                            if (v > 0) p = v;
+                        }
+
+                        if (p.HasValue)
+                        {
+                            pricesBySecId[secId] = p.Value;
+                        }
                     }
                 }
             }
@@ -161,6 +190,10 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                 var columns = secElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
                 var secIdIdx = columns.IndexOf("SECID");
                 var isinIdx = columns.IndexOf("ISIN");
+                var prevPriceIdx = columns.IndexOf("PREVPRICE");
+                var prevLegalCloseIdx = columns.IndexOf("PREVLEGALCLOSEPRICE");
+                var legalCloseIdx = columns.IndexOf("LEGALCLOSEPRICE");
+                var prevWaPriceIdx = columns.IndexOf("PREVWAPRICE");
                 var faceValueIdx = isBond ? columns.IndexOf("FACEVALUE") : -1;
                 var aciIdx = isBond ? columns.IndexOf("ACCRUEDINT") : -1;
                 var faceUnitIdx = isBond ? columns.IndexOf("FACEUNIT") : -1;
@@ -170,7 +203,31 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                     foreach (var row in secElement.GetProperty("data").EnumerateArray())
                     {
                         var secId = row[secIdIdx].GetString();
-                        if (string.IsNullOrEmpty(secId) || !pricesBySecId.TryGetValue(secId, out var lastPrice)) continue;
+                        if (string.IsNullOrEmpty(secId)) continue;
+
+                        decimal lastPrice = 0m;
+                        if (pricesBySecId.TryGetValue(secId, out var p) && p > 0)
+                        {
+                            lastPrice = p;
+                        }
+                        else if (prevPriceIdx >= 0 && row[prevPriceIdx].ValueKind == JsonValueKind.Number)
+                        {
+                            lastPrice = row[prevPriceIdx].GetDecimal();
+                        }
+                        else if (prevLegalCloseIdx >= 0 && row[prevLegalCloseIdx].ValueKind == JsonValueKind.Number)
+                        {
+                            lastPrice = row[prevLegalCloseIdx].GetDecimal();
+                        }
+                        else if (legalCloseIdx >= 0 && row[legalCloseIdx].ValueKind == JsonValueKind.Number)
+                        {
+                            lastPrice = row[legalCloseIdx].GetDecimal();
+                        }
+                        else if (prevWaPriceIdx >= 0 && row[prevWaPriceIdx].ValueKind == JsonValueKind.Number)
+                        {
+                            lastPrice = row[prevWaPriceIdx].GetDecimal();
+                        }
+
+                        if (lastPrice <= 0) continue;
 
                         var isin = isinIdx >= 0 ? row[isinIdx].GetString() : null;
 
@@ -243,6 +300,84 @@ public class MoexQuoteProvider : IMoexQuoteProvider
             // fallback
         }
         return 12.0m;
+    }
+
+    public async Task<IReadOnlyCollection<MoexBondPayoutDto>> GetBondPayoutsAsync(
+        string ticker,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new List<MoexBondPayoutDto>();
+        try
+        {
+            var normalizedTicker = ticker.Trim().ToUpperInvariant();
+            var url = $"iss/securities/{normalizedTicker}/bondization.json?iss.meta=off";
+            using var response = await _httpClient.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode) return result;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+            // 1. Амортизации
+            if (doc.RootElement.TryGetProperty("amortizations", out var amortElement))
+            {
+                var columns = amortElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
+                var dateIdx = columns.IndexOf("amortdate");
+                var valueIdx = columns.IndexOf("value");
+
+                if (dateIdx >= 0 && valueIdx >= 0)
+                {
+                    foreach (var row in amortElement.GetProperty("data").EnumerateArray())
+                    {
+                        var dateStr = row[dateIdx].GetString();
+                        if (string.IsNullOrEmpty(dateStr) || !DateOnly.TryParse(dateStr, out var date)) continue;
+                        if (row[valueIdx].ValueKind == JsonValueKind.Null) continue;
+                        var val = row[valueIdx].GetDecimal();
+                        if (val <= 0) continue;
+
+                        result.Add(new MoexBondPayoutDto(normalizedTicker, date, null, "Amortization", val, "RUB"));
+                    }
+                }
+            }
+
+            // 2. Купоны
+            if (doc.RootElement.TryGetProperty("coupons", out var couponElement))
+            {
+                var columns = couponElement.GetProperty("columns").EnumerateArray().Select(c => c.GetString()!).ToList();
+                var dateIdx = columns.IndexOf("coupondate");
+                var recordDateIdx = columns.IndexOf("recorddate");
+                var valueIdx = columns.IndexOf("value");
+
+                if (dateIdx >= 0 && valueIdx >= 0)
+                {
+                    foreach (var row in couponElement.GetProperty("data").EnumerateArray())
+                    {
+                        var dateStr = row[dateIdx].GetString();
+                        if (string.IsNullOrEmpty(dateStr) || !DateOnly.TryParse(dateStr, out var date)) continue;
+                        if (row[valueIdx].ValueKind == JsonValueKind.Null) continue;
+                        var val = row[valueIdx].GetDecimal();
+                        if (val <= 0) continue;
+
+                        DateOnly? recordDate = null;
+                        if (recordDateIdx >= 0 && row[recordDateIdx].ValueKind == JsonValueKind.String)
+                        {
+                            var rStr = row[recordDateIdx].GetString();
+                            if (!string.IsNullOrEmpty(rStr) && DateOnly.TryParse(rStr, out var rDate))
+                            {
+                                recordDate = rDate;
+                            }
+                        }
+
+                        result.Add(new MoexBondPayoutDto(normalizedTicker, date, recordDate, "Coupon", val, "RUB"));
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ошибки MOEX не ломают работу приложения
+        }
+
+        return result;
     }
 
     private static (string Engine, string Market, string Board) ResolveMarket(string ticker) =>

@@ -76,7 +76,7 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
 
         foreach (var h in holdingsBase)
         {
-            bool hasQuote = quotes.TryGetValue(h.Ticker, out var quote);
+            bool hasQuote = quotes.TryGetValue(h.Ticker, out var quote) && quote is not null && quote.LastPrice > 0;
             decimal lastPrice = 0;
             decimal marketValue = 0;
             decimal totalCost = h.Quantity * h.AvgPrice;
@@ -112,9 +112,18 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
                 totalMarketValue += marketValue;
                 totalCostForPnl += totalCost;
             }
+            else
+            {
+                // Защитный fallback: если MOEX не вернул котировку (выходной/сбой/бумага не торгуется),
+                // используем цену покупки (балансовую стоимость), чтобы общая стоимость портфеля не падала до 0!
+                lastPrice = h.AvgPrice;
+                marketValue = totalCost;
+                totalMarketValue += marketValue;
+                totalCostForPnl += totalCost;
+            }
 
-            decimal unrealizedPnl = marketValue > 0 ? marketValue - totalCost : 0;
-            decimal unrealizedPnlPct = (marketValue > 0 && totalCost > 0) 
+            decimal unrealizedPnl = hasQuote ? (marketValue - totalCost) : 0;
+            decimal unrealizedPnlPct = (hasQuote && totalCost > 0) 
                 ? (unrealizedPnl / totalCost) * 100m 
                 : 0;
 

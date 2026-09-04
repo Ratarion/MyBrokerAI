@@ -22,4 +22,9 @@ public interface IMoexQuoteProvider
 
     /// <summary>Получить текущий биржевой курс юаня к рублю (CNYRUB_TOM).</summary>
     Task<decimal> GetCnyRubRateAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Получить график выплат (купоны и амортизации) для облигации из MOEX ISS.</summary>
+    Task<IReadOnlyCollection<MoexBondPayoutDto>> GetBondPayoutsAsync(
+        string ticker,
+        CancellationToken cancellationToken = default);
 }

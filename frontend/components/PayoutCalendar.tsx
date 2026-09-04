@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatDateTime, type TransactionDto } from "@/lib/api";
+import { formatDateTime, type TransactionDto, type PortfolioPayoutsScheduleDto } from "@/lib/api";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 interface PayoutCalendarProps {
   transactions: TransactionDto[];
+  schedule?: PortfolioPayoutsScheduleDto | null;
 }
 
 const MONTH_NAMES = [
@@ -17,15 +18,31 @@ const FULL_MONTH_NAMES = [
   "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"
 ];
 
-export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
+export function PayoutCalendar({ transactions, schedule }: PayoutCalendarProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("Текущий год");
   const [viewMode, setViewMode] = useState<"calendar" | "list">("list");
   
   // Extract all relevant income transactions and generate TTM forecast
   const allIncomeTxs = useMemo(() => {
+    if (schedule?.payouts && schedule.payouts.length > 0) {
+      return schedule.payouts.map(p => ({
+        id: p.id,
+        assetId: p.assetId,
+        assetTicker: p.assetTicker,
+        assetName: p.assetName,
+        type: p.type,
+        priceAmount: p.amount,
+        executedAt: p.executedAt,
+        recordDate: p.recordDate,
+        status: p.status,
+        calculation: p.calculation,
+        isFuture: p.isFuture
+      })).sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
+    }
+
     const pastTxs = transactions
       .filter((tx) => tx.type === "Dividend" || tx.type === "Coupon" || tx.type === "Tax" || tx.type === "Amortization")
-      .map(tx => ({ ...tx, status: tx.type === "Tax" ? "Удержан" : (tx.type === "Amortization" ? "Погашения/амортизация" : "Выплачены") }));
+      .map(tx => ({ ...tx, status: tx.type === "Tax" ? "Удержан" : (tx.type === "Amortization" ? "Погашения/амортизация" : "Выплачены"), calculation: null, recordDate: null, isFuture: false }));
       
     // Generate TTM Forecast (Прогноз) based on past 12 months
     const now = new Date();
@@ -41,13 +58,16 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
           ...tx,
           id: `forecast-${tx.id}`,
           executedAt: forecastDate.toISOString(),
-          status: "Прогноз"
+          status: "Прогноз",
+          calculation: null,
+          recordDate: null,
+          isFuture: true
         };
       });
 
     return [...pastTxs, ...forecasts]
       .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
-  }, [transactions]);
+  }, [transactions, schedule]);
 
   // Determine available years for dropdown
   const availableYears = useMemo(() => {
@@ -337,11 +357,13 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                             <span className={`w-1.5 h-1.5 rounded-full ${
                               isTax 
                                 ? "bg-danger" 
-                                : isForecast 
-                                  ? "bg-[#3b82f6]" 
-                                  : isAmortization 
-                                    ? "bg-[#f59e0b]" 
-                                    : "bg-[#9D4EDD]"
+                                : tx.status === "Объявлены"
+                                  ? "bg-[#0ea5e9]"
+                                  : isForecast 
+                                    ? "bg-[#3b82f6]" 
+                                    : isAmortization 
+                                      ? "bg-[#f59e0b]" 
+                                      : "bg-[#9D4EDD]"
                             }`}></span>
                             {tx.status} {formattedDate}
                           </span>
@@ -354,7 +376,7 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                           </span>
                           {!isTax && (
                             <span className="text-xs text-muted mt-0.5">
-                              1 × {amount.toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽
+                              {tx.calculation || `1 × ${amount.toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽`}
                             </span>
                           )}
                         </div>
@@ -388,7 +410,7 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                         <div className="flex flex-col items-end w-[120px] pr-2">
                           <span className="text-sm font-medium text-foreground">{formattedDate}</span>
                           <span className="text-xs text-muted mt-0.5 border-b border-dashed border-muted cursor-help">
-                            {isTax ? "Дата удержания" : isAmortization ? "Погашение" : "Дата выплаты"}
+                            {isTax ? "Дата удержания" : isAmortization ? "Погашение" : tx.recordDate ? "Див. отсечка" : "Дата выплаты"}
                           </span>
                         </div>
 

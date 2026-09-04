@@ -1,3 +1,4 @@
+
 using InvestTracker.Application.Common.Interfaces;
 using InvestTracker.Application.Imports.Commands.ImportSberReport;
 using InvestTracker.Application.Imports.Dtos;
@@ -5,6 +6,7 @@ using InvestTracker.Application.Portfolios.Commands.CreatePortfolio;
 using InvestTracker.Application.Portfolios.Dtos;
 using InvestTracker.Application.Portfolios.Queries.GetPortfolioById;
 using InvestTracker.Application.Portfolios.Queries.GetPortfolioMarketValue;
+using InvestTracker.Application.Portfolios.Queries.GetPortfolioPayouts;
 using InvestTracker.Application.Portfolios.Queries.GetPortfolios;
 using InvestTracker.Application.Transactions.Commands.AddTransaction;
 using InvestTracker.WebApi.Common;
@@ -185,6 +187,31 @@ public static class PortfolioEndpoints
         .WithName("GetPortfolioMarketValue")
         .WithSummary("Рыночная стоимость портфеля")
         .Produces<PortfolioMarketValueDto>()
+        .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapGet("/{portfolioId:guid}/payouts", async (
+            Guid portfolioId,
+            HttpContext httpContext,
+            ISender sender,
+            IAppDbContext dbContext,
+            CancellationToken cancellationToken) =>
+        {
+            var userId = httpContext.GetRequiredUserId();
+
+            var owned = await dbContext.Portfolios
+                .AnyAsync(p => p.Id == portfolioId && p.UserId == userId, cancellationToken);
+
+            if (!owned)
+            {
+                return Results.NotFound();
+            }
+
+            var schedule = await sender.Send(new GetPortfolioPayoutsQuery(portfolioId), cancellationToken);
+            return Results.Ok(schedule);
+        })
+        .WithName("GetPortfolioPayouts")
+        .WithSummary("Календарь и график выплат портфеля (купоны, дивиденды, амортизации)")
+        .Produces<PortfolioPayoutsScheduleDto>()
         .ProducesProblem(StatusCodes.Status404NotFound);
 
         return app;
