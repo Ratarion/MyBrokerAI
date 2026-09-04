@@ -68,6 +68,7 @@ export interface HoldingDto {
   assetType: AssetType;
   quantity: number;
   avgPrice: number;
+  totalCost?: number;
   avgPriceCurrency: Currency;
 }
 
@@ -156,4 +157,5 @@ export interface PortfolioMarketValueDto {
   totalUnrealizedPnlPct: number;
   holdings: HoldingMarketValueDto[];
   fetchedAt: string;
+  cnyRate?: number;
 }

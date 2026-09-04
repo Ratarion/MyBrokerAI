@@ -106,6 +106,17 @@ public class Transaction : AuditableEntity
         Touch();
     }
 
+    public void UpdateAssetAndType(Guid? assetId, TransactionType type)
+    {
+        if (RequiresAsset(type) && assetId is null)
+        {
+            throw new DomainException($"Для операции типа '{type}' необходимо указать актив.");
+        }
+        AssetId = assetId;
+        Type = type;
+        Touch();
+    }
+
     private static bool RequiresAsset(TransactionType type) =>
-        type is TransactionType.Buy or TransactionType.Sell or TransactionType.Dividend or TransactionType.Coupon;
+        type is TransactionType.Buy or TransactionType.Sell or TransactionType.Dividend or TransactionType.Coupon or TransactionType.Amortization;
 }

@@ -121,6 +121,7 @@ public static class PortfolioCalculator
                     AssetType:        asset?.AssetType ?? AssetType.Stock,
                     Quantity:         Math.Round(p.Value.Quantity, 6),
                     AvgPrice:         avgPrice,
+                    TotalCost:        Math.Round(p.Value.TotalCost, 2),
                     AvgPriceCurrency: p.Value.Currency);
             })
             .OrderBy(h => h.Ticker)

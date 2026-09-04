@@ -13,4 +13,5 @@ public record HoldingDto(
     AssetType AssetType,
     decimal Quantity,
     decimal AvgPrice,
+    decimal TotalCost,
     Currency AvgPriceCurrency);

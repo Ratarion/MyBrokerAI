@@ -19,4 +19,7 @@ public interface IMoexQuoteProvider
     Task<IReadOnlyDictionary<string, MoexCurrentQuoteDto>> GetCurrentPricesAsync(
         IEnumerable<(string Ticker, AssetType AssetType)> instruments,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Получить текущий биржевой курс юаня к рублю (CNYRUB_TOM).</summary>
+    Task<decimal> GetCnyRubRateAsync(CancellationToken cancellationToken = default);
 }

@@ -10,4 +10,5 @@ public record PortfolioMarketValueDto(
     decimal TotalUnrealizedPnl,
     decimal TotalUnrealizedPnlPct,
     IReadOnlyCollection<HoldingMarketValueDto> Holdings,
-    DateTimeOffset FetchedAt);
+    DateTimeOffset FetchedAt,
+    decimal CnyRate = 12.0m);

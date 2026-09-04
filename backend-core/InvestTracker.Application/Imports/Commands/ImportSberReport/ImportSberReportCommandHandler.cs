@@ -63,7 +63,7 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
             // ISIN-подобный код (12 симв., начинается с 2 латинских букв) — считаем облигацией,
             // иначе — акцией/фондом. Эвристика: ETF/фонды так не отличить от акций, поправить
             // можно будет только вручную (редактирования актива пока нет в UI).
-            var assetType = LooksLikeIsin(normalizedCode) ? AssetType.Bond : AssetType.Stock;
+            var assetType = security.AssetType ?? (LooksLikeIsin(normalizedCode) ? AssetType.Bond : AssetType.Stock);
 
             var asset = Asset.Create(normalizedCode, security.Name, assetType, portfolio.BaseCurrency);
             _context.Assets.Add(asset);
@@ -73,17 +73,16 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
 
         // Уже импортированные операции этого портфеля — чтобы не задвоить при повторном импорте
         // того же (или пересекающегося по датам) отчёта.
-        var existingExternalIds = portfolio.Transactions
+        var existingTransactionsByExternalId = portfolio.Transactions
             .Where(t => t.ExternalId != null)
-            .Select(t => t.ExternalId!)
-            .ToHashSet();
+            .ToDictionary(t => t.ExternalId!, StringComparer.OrdinalIgnoreCase);
 
         var imported = 0;
         var skippedDuplicates = 0;
 
         foreach (var trade in report.Trades)
         {
-            if (!existingExternalIds.Add(trade.ExternalId))
+            if (trade.ExternalId is not null && existingTransactionsByExternalId.ContainsKey(trade.ExternalId))
             {
                 skippedDuplicates++;
                 continue;
@@ -94,7 +93,7 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
                 continue; // не должно случаться: Securities строятся из тех же сделок
             }
 
-            portfolio.AddTransaction(
+            var newTx = portfolio.AddTransaction(
                 asset.Id,
                 trade.Type,
                 trade.Quantity,
@@ -102,6 +101,11 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
                 new Money(trade.Fee, trade.Currency),
                 trade.ExecutedAt,
                 trade.ExternalId);
+
+            if (trade.ExternalId is not null)
+            {
+                existingTransactionsByExternalId[trade.ExternalId] = newTx;
+            }
 
             imported++;
         }
@@ -111,12 +115,6 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
 
         foreach (var cashFlow in report.CashFlows)
         {
-            if (!existingExternalIds.Add(cashFlow.ExternalId))
-            {
-                skippedDuplicates++;
-                continue;
-            }
-
             Guid? assetId = null;
             if (cashFlow.SecurityCode is { } code
                 && assetsByCode.TryGetValue(code.Trim().ToUpperInvariant(), out var asset))
@@ -126,23 +124,39 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
 
             var effectiveType = cashFlow.Type;
 
-            // Дивиденд/купон без привязки к активу нарушает доменный инвариант.
+            // Дивиденд/купон/амортизация без привязки к активу нарушает доменный инвариант.
             // Такое бывает, когда бумага куплена до начала периода отчёта и в описании нет ISIN —
             // мы не можем определить, к какому активу относится выплата.
             // Решение: записываем как Deposit (деньги приходят корректно), а описание
             // добавляем в предупреждения — пользователь видит, что именно не привязалось.
             if (assetId is null
-                && cashFlow.Type is TransactionType.Dividend or TransactionType.Coupon)
+                && cashFlow.Type is TransactionType.Dividend or TransactionType.Coupon or TransactionType.Amortization)
             {
                 effectiveType = TransactionType.Deposit;
                 handlerWarnings.Add(
                     $"Не удалось привязать к активу — записано как пополнение: «{cashFlow.Description}»");
             }
 
-            // У чисто денежных операций (Deposit/Withdrawal/Tax/Dividend/Coupon) в модели нет
+            if (cashFlow.ExternalId is not null && existingTransactionsByExternalId.TryGetValue(cashFlow.ExternalId, out var existingTx))
+            {
+                // Если операция ранее была ошибочно записана как Deposit без актива,
+                // а теперь распознана как Amortization / Coupon / Dividend с привязанным активом — обновляем её!
+                if (existingTx.Type == TransactionType.Deposit && effectiveType != TransactionType.Deposit && assetId is not null)
+                {
+                    existingTx.UpdateAssetAndType(assetId, effectiveType);
+                    imported++;
+                }
+                else
+                {
+                    skippedDuplicates++;
+                }
+                continue;
+            }
+
+            // У чисто денежных операций (Deposit/Withdrawal/Tax/Dividend/Coupon/Amortization) в модели нет
             // отдельного поля "сумма" — используем Quantity=1, Price=сумма операции. Осознанный
             // выбор в рамках текущей схемы Transaction (стоимость = Price × Quantity), не баг.
-            portfolio.AddTransaction(
+            var createdCashTx = portfolio.AddTransaction(
                 assetId,
                 effectiveType,
                 quantity: 1,
@@ -150,6 +164,11 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
                 fee: Money.Zero(cashFlow.Currency),
                 cashFlow.ExecutedAt,
                 cashFlow.ExternalId);
+
+            if (cashFlow.ExternalId is not null)
+            {
+                existingTransactionsByExternalId[cashFlow.ExternalId] = createdCashTx;
+            }
 
             imported++;
         }

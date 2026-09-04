@@ -3,7 +3,7 @@ using InvestTracker.Domain.Enums;
 namespace InvestTracker.Application.Imports.Dtos;
 
 /// <summary>Ценная бумага, встреченная в отчёте — источник для создания/поиска Asset.</summary>
-public record ParsedSecurity(string Code, string Name);
+public record ParsedSecurity(string Code, string Name, AssetType? AssetType = null);
 
 /// <summary>Сделка купли/продажи из отчёта.</summary>
 public record ParsedTrade(

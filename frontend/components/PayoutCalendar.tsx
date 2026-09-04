@@ -129,8 +129,8 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
          const key = `${y}-${String(m + 1).padStart(2, "0")}`;
          const g = groups[key];
          
-         const paid = g ? g.txs.filter(t => t.status === "Выплачены" || t.status === "Удержан").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
-         const amort = g ? g.txs.filter(t => t.status === "Погашения/амортизация").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
+         const paid = g ? g.txs.filter(t => (t.status === "Выплачены" || t.status === "Удержан") && t.type !== "Amortization").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
+         const amort = g ? g.txs.filter(t => t.type === "Amortization" && t.status !== "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
          const forecast = g ? g.txs.filter(t => t.status === "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
          
          chart.push({
@@ -154,8 +154,8 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
       const key = `${chartYear}-${String(i + 1).padStart(2, "0")}`;
       const g = groups[key];
       
-      const paid = g ? g.txs.filter(t => t.status === "Выплачены" || t.status === "Удержан").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
-      const amort = g ? g.txs.filter(t => t.status === "Погашения/амортизация").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
+      const paid = g ? g.txs.filter(t => (t.status === "Выплачены" || t.status === "Удержан") && t.type !== "Amortization").reduce((acc, t) => acc + (t.type === "Tax" ? -t.priceAmount : t.priceAmount), 0) : 0;
+      const amort = g ? g.txs.filter(t => t.type === "Amortization" && t.status !== "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
       const forecast = g ? g.txs.filter(t => t.status === "Прогноз").reduce((acc, t) => acc + t.priceAmount, 0) : 0;
       
       chart.push({
@@ -307,6 +307,7 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                   {group.transactions.map((tx: any) => {
                     const isTax = tx.type === "Tax";
                     const isCoupon = tx.type === "Coupon";
+                    const isAmortization = tx.type === "Amortization";
                     const isForecast = tx.status === "Прогноз";
                     const amount = isTax ? -tx.priceAmount : tx.priceAmount;
                     const dateStr = formatDateTime(tx.executedAt).split(",")[0];
@@ -318,8 +319,10 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                         
                         {/* Asset Info */}
                         <div className="flex items-center gap-4 w-[250px]">
-                          <div className="w-10 h-10 rounded bg-white text-black font-bold flex items-center justify-center text-xs overflow-hidden shrink-0">
-                            {tx.assetTicker ? tx.assetTicker.substring(0, 4) : "TAX"}
+                          <div className={`w-10 h-10 rounded font-bold flex items-center justify-center text-xs overflow-hidden shrink-0 ${
+                            isAmortization ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-white text-black"
+                          }`}>
+                            {tx.assetTicker ? tx.assetTicker.substring(0, 4) : isTax ? "TAX" : "PAY"}
                           </div>
                           <div className="flex flex-col truncate">
                             <span className="text-sm font-medium text-foreground truncate">{tx.assetName || (isTax ? "Налог" : "Неизвестный актив")}</span>
@@ -330,29 +333,54 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                         {/* Dates */}
                         <div className="flex flex-col w-[150px]">
                           <span className="text-sm font-medium text-foreground">{formattedDate}</span>
-                          <span className="text-xs text-muted flex items-center gap-1 mt-0.5">
-                            <span className={`w-1.5 h-1.5 rounded-full ${isTax ? "bg-danger" : isForecast ? "bg-[#3b82f6]" : (tx.status === "Погашения/амортизация" ? "bg-[#f59e0b]" : "bg-[#9D4EDD]")}`}></span>
+                          <span className="text-xs text-muted flex items-center gap-1.5 mt-0.5">
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              isTax 
+                                ? "bg-danger" 
+                                : isForecast 
+                                  ? "bg-[#3b82f6]" 
+                                  : isAmortization 
+                                    ? "bg-[#f59e0b]" 
+                                    : "bg-[#9D4EDD]"
+                            }`}></span>
                             {tx.status} {formattedDate}
                           </span>
                         </div>
 
                         {/* Amount */}
                         <div className="flex flex-col w-[120px] text-right">
-                          <span className={`text-sm font-semibold ${isTax ? "text-danger" : "text-foreground"}`}>
+                          <span className={`text-sm font-semibold ${isTax ? "text-danger" : isAmortization ? "text-amber-400" : "text-foreground"}`}>
                             {amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
                           </span>
                           {!isTax && (
                             <span className="text-xs text-muted mt-0.5">
-                              {/* Fake quantity display for visual likeness to screenshot */}
                               1 × {amount.toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽
                             </span>
                           )}
                         </div>
 
-                        {/* Frequency / Yield (Stubbed as we don't have this data) */}
-                        <div className="hidden md:flex flex-col w-[120px] items-center text-center">
-                          <span className="text-xs text-muted flex items-center gap-1">
-                            <span className="text-lg leading-none">...</span> {isCoupon ? "Купон" : isTax ? "Налог" : "Дивиденд"}
+                        {/* Frequency / Type */}
+                        <div className="hidden md:flex flex-col w-[130px] items-center text-center">
+                          <span className={`text-xs flex items-center gap-1.5 ${
+                            isAmortization ? "text-amber-400 font-medium" : "text-muted"
+                          }`}>
+                            {isAmortization ? (
+                              <>
+                                <span>📉</span> Амортизация
+                              </>
+                            ) : isCoupon ? (
+                              <>
+                                <span className="text-lg leading-none">...</span> Купон
+                              </>
+                            ) : isTax ? (
+                              <>
+                                <span>🏷️</span> Налог
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-lg leading-none">...</span> Дивиденд
+                              </>
+                            )}
                           </span>
                         </div>
 
@@ -360,7 +388,7 @@ export function PayoutCalendar({ transactions }: PayoutCalendarProps) {
                         <div className="flex flex-col items-end w-[120px] pr-2">
                           <span className="text-sm font-medium text-foreground">{formattedDate}</span>
                           <span className="text-xs text-muted mt-0.5 border-b border-dashed border-muted cursor-help">
-                            {isTax ? "Дата удержания" : "Дата выплаты"}
+                            {isTax ? "Дата удержания" : isAmortization ? "Погашение" : "Дата выплаты"}
                           </span>
                         </div>
 

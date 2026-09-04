@@ -163,6 +163,7 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                 var isinIdx = columns.IndexOf("ISIN");
                 var faceValueIdx = isBond ? columns.IndexOf("FACEVALUE") : -1;
                 var aciIdx = isBond ? columns.IndexOf("ACCRUEDINT") : -1;
+                var faceUnitIdx = isBond ? columns.IndexOf("FACEUNIT") : -1;
 
                 if (secIdIdx >= 0)
                 {
@@ -175,6 +176,7 @@ public class MoexQuoteProvider : IMoexQuoteProvider
 
                         decimal faceValue = 1m;
                         decimal aci = 0m;
+                        string currency = "RUB";
 
                         if (isBond && faceValueIdx >= 0 && row[faceValueIdx].ValueKind != JsonValueKind.Null)
                         {
@@ -186,13 +188,21 @@ public class MoexQuoteProvider : IMoexQuoteProvider
                             aci = row[aciIdx].GetDecimal();
                         }
 
+                        if (isBond && faceUnitIdx >= 0 && row[faceUnitIdx].ValueKind == JsonValueKind.String)
+                        {
+                            var unit = row[faceUnitIdx].GetString();
+                            if (string.Equals(unit, "CNY", StringComparison.OrdinalIgnoreCase)) currency = "CNY";
+                            else if (string.Equals(unit, "USD", StringComparison.OrdinalIgnoreCase)) currency = "USD";
+                            else if (string.Equals(unit, "EUR", StringComparison.OrdinalIgnoreCase)) currency = "EUR";
+                        }
+
                         // Если secId или isin есть в запрошенных тикерах, добавляем в результат
                         foreach (var reqTicker in requestedTickers)
                         {
                             if (string.Equals(reqTicker, secId, StringComparison.OrdinalIgnoreCase) ||
                                 (!string.IsNullOrEmpty(isin) && string.Equals(reqTicker, isin, StringComparison.OrdinalIgnoreCase)))
                             {
-                                result[reqTicker] = new MoexCurrentQuoteDto(reqTicker, lastPrice, faceValue, aci);
+                                result[reqTicker] = new MoexCurrentQuoteDto(reqTicker, lastPrice, faceValue, aci, currency);
                             }
                         }
                     }
@@ -203,6 +213,36 @@ public class MoexQuoteProvider : IMoexQuoteProvider
         {
             // MOEX иногда возвращает 503 или рвет соединение. Глотаем ошибку.
         }
+    }
+
+    public async Task<decimal> GetCnyRubRateAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = "iss/engines/currency/markets/selt/boards/CETS/securities/CNYRUB_TOM.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST";
+            using var response = await _httpClient.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode) return 12.0m;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+            if (document.RootElement.TryGetProperty("marketdata", out var md) &&
+                md.TryGetProperty("data", out var data) &&
+                data.GetArrayLength() > 0)
+            {
+                var row = data[0];
+                if (row.GetArrayLength() > 1 && row[1].ValueKind == JsonValueKind.Number)
+                {
+                    var rate = row[1].GetDecimal();
+                    if (rate > 0) return rate;
+                }
+            }
+        }
+        catch
+        {
+            // fallback
+        }
+        return 12.0m;
     }
 
     private static (string Engine, string Market, string Board) ResolveMarket(string ticker) =>

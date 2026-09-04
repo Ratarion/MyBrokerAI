@@ -11,4 +11,5 @@ public record MoexCurrentQuoteDto(
     string Ticker,
     decimal LastPrice,
     decimal FaceValue,
-    decimal AciRub);
+    decimal AciRub,
+    string Currency = "RUB");

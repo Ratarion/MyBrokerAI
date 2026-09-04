@@ -50,14 +50,28 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             var code = Text(cells[1]).ToUpperInvariant();
             var isin = Text(cells[2]).ToUpperInvariant();
 
-            if (string.IsNullOrWhiteSpace(code) || code == "КОД АКТИВА") continue;
+            var typeText = cells.Count >= 5 ? Text(cells[4]).ToLowerInvariant() : "";
+            AssetType? assetType = null;
+            if (typeText.Contains("фонд") || typeText.Contains("пай") || typeText.Contains("etf") || 
+                name.Contains("ETF", StringComparison.OrdinalIgnoreCase) || name.Contains("Фонд", StringComparison.OrdinalIgnoreCase) || name.Contains("БПИФ", StringComparison.OrdinalIgnoreCase))
+            {
+                assetType = AssetType.Etf;
+            }
+            else if (typeText.Contains("облигац") || name.Contains("ОФЗ", StringComparison.OrdinalIgnoreCase))
+            {
+                assetType = AssetType.Bond;
+            }
+            else if (typeText.Contains("акци"))
+            {
+                assetType = AssetType.Stock;
+            }
 
-            securities.TryAdd(code, new ParsedSecurity(code, name));
+            securities.TryAdd(code, new ParsedSecurity(code, name, assetType));
             // Если код не совпадает с ISIN, полезно добавить и по ISIN, 
             // чтобы можно было находить бумаги по fallbackCode = ISIN
             if (!string.IsNullOrWhiteSpace(isin) && isin != code)
             {
-                securities.TryAdd(isin, new ParsedSecurity(isin, name));
+                securities.TryAdd(isin, new ParsedSecurity(isin, name, assetType));
             }
         }
     }
@@ -192,7 +206,10 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             if (securityName is not null)
             {
                 var match = securities.Values.FirstOrDefault(s =>
-                    string.Equals(s.Name, securityName, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(s.Name, securityName, StringComparison.OrdinalIgnoreCase))
+                    ?? securities.Values.FirstOrDefault(s =>
+                        s.Name.Contains(securityName, StringComparison.OrdinalIgnoreCase) ||
+                        securityName.Contains(s.Name, StringComparison.OrdinalIgnoreCase));
 
                 if (match is not null)
                 {
@@ -281,9 +298,10 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             return (ClassificationResult.Recognized, TransactionType.Coupon, m.Groups["name"].Value.Trim(), null);
         }
 
-        if (DepositRegex().IsMatch(description) || PromoRegex().IsMatch(description))
+        m = AmortizationDepositRegex().Match(description);
+        if (m.Success)
         {
-            return (ClassificationResult.Recognized, TransactionType.Deposit, null, null);
+            return (ClassificationResult.Recognized, TransactionType.Amortization, m.Groups["name"].Value.Trim(), null);
         }
 
         m = AmortizationRegex().Match(description);
@@ -292,6 +310,11 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             var isinGroup = m.Groups["isin"];
             var isin = isinGroup.Success ? isinGroup.Value : null;
             return (ClassificationResult.Recognized, TransactionType.Amortization, m.Groups["name"].Value.Trim(), isin);
+        }
+
+        if (DepositRegex().IsMatch(description) || PromoRegex().IsMatch(description))
+        {
+            return (ClassificationResult.Recognized, TransactionType.Deposit, null, null);
         }
 
         if (TaxRegex().IsMatch(description))
@@ -341,6 +364,9 @@ public partial class SberHtmlReportParser : IBrokerReportParser
     [GeneratedRegex(@"^Зачисление д/с \(купон \d+ по (?<name>.+?)\)$")]
     private static partial Regex CouponDepositRegex();
 
+    [GeneratedRegex(@"^Зачисление д/с \((?:амортизация|выплата амортизации|погашение|погашение облигаций)\s+(?<name>.+?)\)$", RegexOptions.IgnoreCase)]
+    private static partial Regex AmortizationDepositRegex();
+
     [GeneratedRegex(@"^Зачисление д/с(\s*\(.*\))?$")]
     private static partial Regex DepositRegex();
 
@@ -356,6 +382,6 @@ public partial class SberHtmlReportParser : IBrokerReportParser
     [GeneratedRegex(@"^(Сделка от |Комиссия Биржи от |Комиссия Брокера.* от )")]
     private static partial Regex SkipRegex();
 
-    [GeneratedRegex(@"^(?:Погашение номинальной стоимости|Амортизация|Выплата амортизации|Погашение облигаций) (?<name>.+?)(?:; ISIN (?<isin>[A-Z0-9]+))?")]
+    [GeneratedRegex(@"^(?:Погашение номинальной стоимости|Амортизация|Выплата амортизации|Погашение облигаций)\s+(?<name>.+?)(?:;\s*ISIN\s+(?<isin>[A-Z0-9]+))?", RegexOptions.IgnoreCase)]
     private static partial Regex AmortizationRegex();
 }

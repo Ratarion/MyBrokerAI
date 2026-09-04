@@ -68,6 +68,7 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
             .ToList();
 
         var quotes = await _moexQuoteProvider.GetCurrentPricesAsync(instruments, cancellationToken);
+        var cnyRate = await _moexQuoteProvider.GetCnyRubRateAsync(cancellationToken);
 
         var marketHoldings = new List<HoldingMarketValueDto>();
         decimal totalMarketValue = 0;
@@ -87,7 +88,19 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
                 if (h.AssetType == AssetType.Bond)
                 {
                     // Для облигаций: (цена в процентах * номинал / 100) + НКД
-                    decimal priceRub = (quote.LastPrice * quote.FaceValue / 100m) + quote.AciRub;
+                    decimal bondPrice = (quote.LastPrice * quote.FaceValue / 100m) + quote.AciRub;
+
+                    // Если облигация номинирована в валюте (например, юаневые облигации Полюса),
+                    // переводим стоимость в рубли по биржевому курсу
+                    decimal fxRate = quote.Currency switch
+                    {
+                        "CNY" => cnyRate,
+                        "USD" => 90.0m,
+                        "EUR" => 100.0m,
+                        _ => 1.0m
+                    };
+
+                    decimal priceRub = bondPrice * fxRate;
                     marketValue = h.Quantity * priceRub;
                 }
                 else
@@ -122,8 +135,8 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
             }
             else if (cash.Currency == Currency.CNY)
             {
-                totalMarketValue += cash.Amount * 12.0m;
-                totalCostForPnl += cash.Amount * 12.0m; // Упрощенно
+                totalMarketValue += cash.Amount * cnyRate;
+                totalCostForPnl += cash.Amount * cnyRate;
             }
         }
 
@@ -138,6 +151,7 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
             Math.Round(totalUnrealizedPnl, 2),
             Math.Round(totalUnrealizedPnlPct, 2),
             marketHoldings,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            Math.Round(cnyRate, 4));
     }
 }
