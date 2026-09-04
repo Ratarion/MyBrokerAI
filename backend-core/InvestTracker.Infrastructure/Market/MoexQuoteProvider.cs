@@ -104,19 +104,23 @@ public class MoexQuoteProvider : IMoexQuoteProvider
 
         if (bonds.Count > 0)
         {
-            // ОФЗ (TQOB)
+            var bondsParam = string.Join(",", bonds);
+            
+            // ОФЗ (TQOB) — загружаем ВСЕ бумаги без фильтра, т.к. у ОФЗ
+            // SECID (SU26226RMFS9) != ISIN (RU000A0ZZYW2), а мы храним ISIN.
+            // На TQOB всего ~60 бумаг, пагинация не нужна.
             var tqobUrl = "iss/engines/stock/markets/bonds/boards/TQOB/securities.json?iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(tqobUrl, true, result, bonds, cancellationToken);
             
-            // Корпоративные облигации (TQCB)
-            var tqcbUrl = "iss/engines/stock/markets/bonds/boards/TQCB/securities.json?iss.meta=off&iss.only=securities,marketdata";
+            // Корпоративные облигации (TQCB) — SECID == ISIN, фильтр работает
+            var tqcbUrl = $"iss/engines/stock/markets/bonds/boards/TQCB/securities.json?securities={bondsParam}&iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(tqcbUrl, true, result, bonds, cancellationToken);
 
             // Субфедеральные облигации (TQPI / TQIR)
-            var tqirUrl = "iss/engines/stock/markets/bonds/boards/TQIR/securities.json?iss.meta=off&iss.only=securities,marketdata";
+            var tqirUrl = $"iss/engines/stock/markets/bonds/boards/TQIR/securities.json?securities={bondsParam}&iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(tqirUrl, true, result, bonds, cancellationToken);
             
-            var tqpiUrl = "iss/engines/stock/markets/bonds/boards/TQPI/securities.json?iss.meta=off&iss.only=securities,marketdata";
+            var tqpiUrl = $"iss/engines/stock/markets/bonds/boards/TQPI/securities.json?securities={bondsParam}&iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(tqpiUrl, true, result, bonds, cancellationToken);
         }
 

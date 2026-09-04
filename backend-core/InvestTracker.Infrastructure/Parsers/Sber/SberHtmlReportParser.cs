@@ -205,6 +205,15 @@ public partial class SberHtmlReportParser : IBrokerReportParser
                     securityCode = fallbackCode.ToUpperInvariant();
                     securities.TryAdd(securityCode, new ParsedSecurity(securityCode, securityName));
                 }
+                else if (Regex.IsMatch(securityName, @"^\d{5}$"))
+                {
+                    // ОФЗ, например 26226. Брокер пишет название без "ОФЗ". Пытаемся найти по подстроке.
+                    var ofzMatch = securities.Values.FirstOrDefault(s => s.Name.Contains(securityName));
+                    if (ofzMatch is not null)
+                    {
+                        securityCode = ofzMatch.Code;
+                    }
+                }
                 else if (securityName.EndsWith(" ETF", StringComparison.OrdinalIgnoreCase))
                 {
                     // Эвристика: Сбербанк иногда пишет "Выплата дохода по паям/ису FLOW ETF. Налог удержан."
