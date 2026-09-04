@@ -79,7 +79,18 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
             bool hasQuote = quotes.TryGetValue(h.Ticker, out var quote) && quote is not null && quote.LastPrice > 0;
             decimal lastPrice = 0;
             decimal marketValue = 0;
-            decimal totalCost = h.Quantity * h.AvgPrice;
+
+            decimal costFxRate = h.AvgPriceCurrency switch
+            {
+                Currency.CNY => cnyRate,
+                Currency.USD => 90.0m,
+                Currency.EUR => 100.0m,
+                _ => 1.0m
+            };
+            decimal totalCostRub = (h.Quantity * h.AvgPrice) * costFxRate;
+
+            string? nativeCurrency = null;
+            decimal? nativePrice = null;
 
             if (hasQuote && quote is not null)
             {
@@ -90,15 +101,25 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
                     // Для облигаций: (цена в процентах * номинал / 100) + НКД
                     decimal bondPrice = (quote.LastPrice * quote.FaceValue / 100m) + quote.AciRub;
 
-                    // Если облигация номинирована в валюте (например, юаневые облигации Полюса),
-                    // переводим стоимость в рубли по биржевому курсу
-                    decimal fxRate = quote.Currency switch
+                    decimal fxRate = 1.0m;
+                    if (string.Equals(quote.Currency, "CNY", StringComparison.OrdinalIgnoreCase))
                     {
-                        "CNY" => cnyRate,
-                        "USD" => 90.0m,
-                        "EUR" => 100.0m,
-                        _ => 1.0m
-                    };
+                        fxRate = cnyRate;
+                        nativeCurrency = "CNY";
+                        nativePrice = bondPrice;
+                    }
+                    else if (string.Equals(quote.Currency, "USD", StringComparison.OrdinalIgnoreCase))
+                    {
+                        fxRate = 90.0m;
+                        nativeCurrency = "USD";
+                        nativePrice = bondPrice;
+                    }
+                    else if (string.Equals(quote.Currency, "EUR", StringComparison.OrdinalIgnoreCase))
+                    {
+                        fxRate = 100.0m;
+                        nativeCurrency = "EUR";
+                        nativePrice = bondPrice;
+                    }
 
                     decimal priceRub = bondPrice * fxRate;
                     marketValue = h.Quantity * priceRub;
@@ -110,28 +131,29 @@ public class GetPortfolioMarketValueQueryHandler : IRequestHandler<GetPortfolioM
                 }
 
                 totalMarketValue += marketValue;
-                totalCostForPnl += totalCost;
+                totalCostForPnl += totalCostRub;
             }
             else
             {
                 // Защитный fallback: если MOEX не вернул котировку (выходной/сбой/бумага не торгуется),
                 // используем цену покупки (балансовую стоимость), чтобы общая стоимость портфеля не падала до 0!
                 lastPrice = h.AvgPrice;
-                marketValue = totalCost;
+                marketValue = totalCostRub;
                 totalMarketValue += marketValue;
-                totalCostForPnl += totalCost;
+                totalCostForPnl += totalCostRub;
             }
 
-            decimal unrealizedPnl = hasQuote ? (marketValue - totalCost) : 0;
-            decimal unrealizedPnlPct = (hasQuote && totalCost > 0) 
-                ? (unrealizedPnl / totalCost) * 100m 
+            decimal unrealizedPnl = hasQuote ? (marketValue - totalCostRub) : 0;
+            decimal unrealizedPnlPct = (hasQuote && totalCostRub > 0) 
+                ? (unrealizedPnl / totalCostRub) * 100m 
                 : 0;
 
             marketHoldings.Add(new HoldingMarketValueDto(
                 h.AssetId, h.Ticker, h.Name, h.AssetType,
                 h.Quantity, h.AvgPrice, h.AvgPriceCurrency,
-                hasQuote, lastPrice, marketValue, totalCost,
-                unrealizedPnl, Math.Round(unrealizedPnlPct, 2)));
+                hasQuote, lastPrice, marketValue, totalCostRub,
+                unrealizedPnl, Math.Round(unrealizedPnlPct, 2),
+                nativeCurrency, nativePrice));
         }
 
         // Добавляем кэш к общей стоимости портфеля

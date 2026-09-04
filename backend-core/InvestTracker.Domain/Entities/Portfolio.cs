@@ -56,9 +56,14 @@ public class Portfolio : AuditableEntity
         Money price,
         Money fee,
         DateTimeOffset executedAt,
-        string? externalId = null)
+        string? externalId = null,
+        string? notes = null)
     {
         var transaction = Transaction.Create(Id, assetId, type, quantity, price, fee, executedAt, externalId);
+        if (!string.IsNullOrWhiteSpace(notes))
+        {
+            transaction.SetNotes(notes);
+        }
         _transactions.Add(transaction);
         Touch();
         return transaction;

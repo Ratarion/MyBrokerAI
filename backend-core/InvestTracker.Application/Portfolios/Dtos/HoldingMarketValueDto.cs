@@ -20,4 +20,6 @@ public record HoldingMarketValueDto(
     decimal MarketValue,
     decimal TotalCost,
     decimal UnrealizedPnl,
-    decimal UnrealizedPnlPct);
+    decimal UnrealizedPnlPct,
+    string? NativeCurrency = null,
+    decimal? NativePrice = null);

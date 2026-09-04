@@ -122,6 +122,14 @@ public class MoexQuoteProvider : IMoexQuoteProvider
             
             var tqpiUrl = $"iss/engines/stock/markets/bonds/boards/TQPI/securities.json?securities={bondsParam}&iss.meta=off&iss.only=securities,marketdata";
             await FetchAndParseMarketData(tqpiUrl, true, result, bonds, cancellationToken);
+
+            // Валютные облигации в юанях (TQOY)
+            var tqoyUrl = $"iss/engines/stock/markets/bonds/boards/TQOY/securities.json?securities={bondsParam}&iss.meta=off&iss.only=securities,marketdata";
+            await FetchAndParseMarketData(tqoyUrl, true, result, bonds, cancellationToken);
+
+            // Валютные облигации в долларах (TQOD)
+            var tqodUrl = $"iss/engines/stock/markets/bonds/boards/TQOD/securities.json?securities={bondsParam}&iss.meta=off&iss.only=securities,marketdata";
+            await FetchAndParseMarketData(tqodUrl, true, result, bonds, cancellationToken);
         }
 
         return result;
@@ -276,21 +284,57 @@ public class MoexQuoteProvider : IMoexQuoteProvider
     {
         try
         {
-            var url = "iss/engines/currency/markets/selt/boards/CETS/securities/CNYRUB_TOM.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,LAST";
+            var url = "iss/engines/currency/markets/selt/boards/CETS/securities/CNYRUB_TOM.json?iss.meta=off";
             using var response = await _httpClient.GetAsync(url, cancellationToken);
-            if (!response.IsSuccessStatusCode) return 12.0m;
+            if (!response.IsSuccessStatusCode) return 12.92m;
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
+            // 1. Пытаемся взять текущую цену LAST или WAPRICE из marketdata
             if (document.RootElement.TryGetProperty("marketdata", out var md) &&
-                md.TryGetProperty("data", out var data) &&
-                data.GetArrayLength() > 0)
+                md.TryGetProperty("columns", out var mdCols) &&
+                md.TryGetProperty("data", out var mdData) &&
+                mdData.GetArrayLength() > 0)
             {
-                var row = data[0];
-                if (row.GetArrayLength() > 1 && row[1].ValueKind == JsonValueKind.Number)
+                var cols = mdCols.EnumerateArray().Select(c => c.GetString()!).ToList();
+                var lastIdx = cols.IndexOf("LAST");
+                var waIdx = cols.IndexOf("WAPRICE");
+                var row = mdData[0];
+
+                if (lastIdx >= 0 && row.GetArrayLength() > lastIdx && row[lastIdx].ValueKind == JsonValueKind.Number)
                 {
-                    var rate = row[1].GetDecimal();
+                    var rate = row[lastIdx].GetDecimal();
+                    if (rate > 0) return rate;
+                }
+
+                if (waIdx >= 0 && row.GetArrayLength() > waIdx && row[waIdx].ValueKind == JsonValueKind.Number)
+                {
+                    var rate = row[waIdx].GetDecimal();
+                    if (rate > 0) return rate;
+                }
+            }
+
+            // 2. Если торги закрыты (выходные/вечер), берем цену закрытия/средневзвешенную из securities
+            if (document.RootElement.TryGetProperty("securities", out var sec) &&
+                sec.TryGetProperty("columns", out var secCols) &&
+                sec.TryGetProperty("data", out var secData) &&
+                secData.GetArrayLength() > 0)
+            {
+                var cols = secCols.EnumerateArray().Select(c => c.GetString()!).ToList();
+                var prevWaIdx = cols.IndexOf("PREVWAPRICE");
+                var prevPriceIdx = cols.IndexOf("PREVPRICE");
+                var row = secData[0];
+
+                if (prevWaIdx >= 0 && row.GetArrayLength() > prevWaIdx && row[prevWaIdx].ValueKind == JsonValueKind.Number)
+                {
+                    var rate = row[prevWaIdx].GetDecimal();
+                    if (rate > 0) return rate;
+                }
+
+                if (prevPriceIdx >= 0 && row.GetArrayLength() > prevPriceIdx && row[prevPriceIdx].ValueKind == JsonValueKind.Number)
+                {
+                    var rate = row[prevPriceIdx].GetDecimal();
                     if (rate > 0) return rate;
                 }
             }
@@ -299,7 +343,7 @@ public class MoexQuoteProvider : IMoexQuoteProvider
         {
             // fallback
         }
-        return 12.0m;
+        return 12.92m;
     }
 
     public async Task<IReadOnlyCollection<MoexBondPayoutDto>> GetBondPayoutsAsync(

@@ -82,8 +82,15 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
 
         foreach (var trade in report.Trades)
         {
-            if (trade.ExternalId is not null && existingTransactionsByExternalId.ContainsKey(trade.ExternalId))
+            if (trade.ExternalId is not null && existingTransactionsByExternalId.TryGetValue(trade.ExternalId, out var existingTx))
             {
+                // При повторном импорте актуализируем цену (чистая цена для облигаций), комиссии и заметки (НКД)
+                existingTx.UpdateTradeDetails(
+                    trade.Quantity,
+                    new Money(trade.Price, trade.Currency),
+                    new Money(trade.Fee, trade.Currency),
+                    trade.Notes);
+
                 skippedDuplicates++;
                 continue;
             }
@@ -100,7 +107,8 @@ public class ImportSberReportCommandHandler : IRequestHandler<ImportSberReportCo
                 new Money(trade.Price, trade.Currency),
                 new Money(trade.Fee, trade.Currency),
                 trade.ExecutedAt,
-                trade.ExternalId);
+                trade.ExternalId,
+                trade.Notes);
 
             if (trade.ExternalId is not null)
             {

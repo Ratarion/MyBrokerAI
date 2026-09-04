@@ -117,6 +117,28 @@ public class Transaction : AuditableEntity
         Touch();
     }
 
+    public void UpdateTradeDetails(decimal quantity, Money price, Money fee, string? notes)
+    {
+        if (quantity < 0)
+        {
+            throw new DomainException("Количество не может быть отрицательным.");
+        }
+        if (price.Amount < 0)
+        {
+            throw new DomainException("Цена не может быть отрицательной.");
+        }
+        if (fee.Amount < 0)
+        {
+            throw new DomainException("Комиссия не может быть отрицательной.");
+        }
+
+        Quantity = quantity;
+        Price = price;
+        Fee = fee;
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        Touch();
+    }
+
     private static bool RequiresAsset(TransactionType type) =>
         type is TransactionType.Buy or TransactionType.Sell or TransactionType.Dividend or TransactionType.Coupon or TransactionType.Amortization;
 }

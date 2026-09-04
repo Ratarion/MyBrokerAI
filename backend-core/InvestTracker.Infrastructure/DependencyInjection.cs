@@ -35,6 +35,10 @@ public static class DependencyInjection
         {
             client.BaseAddress = new Uri("https://iss.moex.com/");
             client.Timeout = TimeSpan.FromSeconds(10);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            UseProxy = false
         });
 
         services.AddScoped<IBrokerReportParser, SberHtmlReportParser>();

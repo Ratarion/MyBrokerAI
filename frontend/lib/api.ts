@@ -169,6 +169,8 @@ export interface HoldingMarketValueDto {
   totalCost: number;
   unrealizedPnl: number;
   unrealizedPnlPct: number;
+  nativeCurrency?: string | null;
+  nativePrice?: number | null;
 }
 
 export interface PortfolioMarketValueDto {

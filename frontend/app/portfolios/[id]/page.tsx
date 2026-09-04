@@ -418,13 +418,28 @@ export default function PortfolioDetailsPage() {
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-foreground">
                             <div>
-                              {h.pricePerUnit.toLocaleString("ru-RU", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}{" "}
-                              <span className="text-muted">{h.currency}</span>
+                              {h.mh?.nativePrice && h.mh.nativeCurrency ? (
+                                <>
+                                  {h.mh.nativePrice.toLocaleString("ru-RU", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}{" "}
+                                  <span className="text-muted">{h.mh.nativeCurrency}</span>
+                                  <div className="text-[10px] text-muted">
+                                    ≈ {h.pricePerUnit.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  {h.pricePerUnit.toLocaleString("ru-RU", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}{" "}
+                                  <span className="text-muted">{h.currency}</span>
+                                </>
+                              )}
                             </div>
-                            {h.mh?.hasQuote && Math.abs(h.avgPrice - h.pricePerUnit) > 0.01 && (
+                            {h.mh?.hasQuote && Math.abs(h.avgPrice - h.pricePerUnit) > 0.01 && !h.mh?.nativeCurrency && (
                               <div className="text-[10px] text-muted">
                                 ср. {h.avgPrice.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
@@ -438,6 +453,12 @@ export default function PortfolioDetailsPage() {
                               })}{" "}
                               <span className="text-muted">{h.currency}</span>
                             </div>
+                            {h.mh?.nativePrice && h.mh.nativeCurrency && (
+                              <div className="text-[10px] text-muted">
+                                {(h.quantity * h.mh.nativePrice).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                                {h.mh.nativeCurrency}
+                              </div>
+                            )}
                             {h.mh?.hasQuote && Math.abs(h.totalCost - h.totalAmount) > 0.01 && (
                               <div className="text-[10px] text-muted">
                                 покупка {h.totalCost.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

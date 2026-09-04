@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using InvestTracker.Application.Portfolios.Dtos;
 using InvestTracker.Domain.Enums;
 
@@ -47,8 +49,19 @@ public static class PortfolioCalculator
                     pos.TotalCost += cost;
                     pos.Quantity  += tx.Quantity;
 
-                    // Деньги уходят из кэша (покупка уменьшает остаток)
-                    AddCash(cash, tx.PriceCurrency, -(tx.Quantity * tx.PriceAmount + tx.FeeAmount));
+                    // Извлекаем НКД из Notes, если сделка была с НКД
+                    decimal nkd = 0m;
+                    if (!string.IsNullOrEmpty(tx.Notes))
+                    {
+                        var nkdMatch = Regex.Match(tx.Notes, @"(?:^|;\s*)nkd:(?<val>[0-9.]+)");
+                        if (nkdMatch.Success && decimal.TryParse(nkdMatch.Groups["val"].Value, CultureInfo.InvariantCulture, out var parsedNkd))
+                        {
+                            nkd = parsedNkd;
+                        }
+                    }
+
+                    // Деньги уходят из кэша (покупка уменьшает остаток): чистая стоимость покупки + комиссии + НКД
+                    AddCash(cash, tx.PriceCurrency, -(cost + nkd));
                     break;
                 }
 
@@ -88,9 +101,19 @@ public static class PortfolioCalculator
 
                 case TransactionType.Dividend:
                 case TransactionType.Coupon:
-                case TransactionType.Amortization:
                     // Quantity=1, Price=сумма. Зачисляются деньгами (актив не меняется).
                     AddCash(cash, tx.PriceCurrency, tx.PriceAmount);
+                    break;
+
+                case TransactionType.Amortization:
+                    // Quantity=1, Price=сумма. Зачисляются деньгами в кэш.
+                    AddCash(cash, tx.PriceCurrency, tx.PriceAmount);
+
+                    // Выплата номинала (амортизация) уменьшает балансовую стоимость позиции (возврат инвестиций)
+                    if (tx.AssetId is { } amortAssetId && positions.TryGetValue(amortAssetId, out var amortPos))
+                    {
+                        amortPos.TotalCost = Math.Max(0m, amortPos.TotalCost - tx.PriceAmount);
+                    }
                     break;
 
                 case TransactionType.Tax:

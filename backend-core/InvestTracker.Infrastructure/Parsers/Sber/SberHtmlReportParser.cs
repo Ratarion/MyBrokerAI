@@ -115,22 +115,50 @@ public partial class SberHtmlReportParser : IBrokerReportParser
             var quantity = ParseDecimal(Text(cells[7]));
             var amount = ParseDecimal(Text(cells[9]));
             var nkd = ParseDecimal(Text(cells[10]));
-            var price = quantity > 0 ? (amount + nkd) / quantity : ParseDecimal(Text(cells[8]));
             var brokerFee = ParseDecimal(Text(cells[11]));
             var exchangeFee = ParseDecimal(Text(cells[12]));
             var tradeNumber = Text(cells[13]);
             var status = Text(cells[15]);
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                var trimmedName = name.Trim().ToUpperInvariant();
+                if (LooksLikeIsin(trimmedName) || securities.ContainsKey(trimmedName) || trimmedName.StartsWith("RU") || trimmedName.StartsWith("SU"))
+                {
+                    code = trimmedName;
+                    if (securities.TryGetValue(code, out var sec) && !string.IsNullOrWhiteSpace(sec.Name))
+                    {
+                        name = sec.Name;
+                    }
+                }
+            }
 
             if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(tradeNumber))
             {
                 continue;
             }
 
-            securities.TryAdd(code, new ParsedSecurity(code, name));
+            var isBond = (securities.TryGetValue(code, out var existingSec) && existingSec.AssetType == AssetType.Bond) || LooksLikeIsin(code);
+            var price = quantity > 0
+                ? (isBond ? amount / quantity : (amount + nkd) / quantity)
+                : ParseDecimal(Text(cells[8]));
+
+            securities.TryAdd(code, new ParsedSecurity(code, name, isBond ? AssetType.Bond : null));
 
             var type = side.StartsWith("Покуп", StringComparison.OrdinalIgnoreCase)
                 ? TransactionType.Buy
                 : TransactionType.Sell;
+
+            var notesList = new List<string>();
+            if (isBond && nkd > 0)
+            {
+                notesList.Add($"nkd:{nkd.ToString(CultureInfo.InvariantCulture)}");
+            }
+            if (status is not "" and not "ЗИ")
+            {
+                notesList.Add($"Статус у брокера: {status}");
+            }
+            var notes = notesList.Count > 0 ? string.Join("; ", notesList) : null;
 
             trades.Add(new ParsedTrade(
                 new DateTimeOffset(date.ToDateTime(time), TimeSpan.Zero),
@@ -141,7 +169,7 @@ public partial class SberHtmlReportParser : IBrokerReportParser
                 brokerFee + exchangeFee,
                 currency,
                 $"sber-trade:{tradeNumber}",
-                status is "" or "ЗИ" ? null : $"Статус у брокера: {status}"));
+                notes));
         }
     }
 
@@ -384,4 +412,7 @@ public partial class SberHtmlReportParser : IBrokerReportParser
 
     [GeneratedRegex(@"^(?:Погашение номинальной стоимости|Амортизация|Выплата амортизации|Погашение облигаций)\s+(?<name>.+?)(?:;\s*ISIN\s+(?<isin>[A-Z0-9]+))?", RegexOptions.IgnoreCase)]
     private static partial Regex AmortizationRegex();
+
+    private static bool LooksLikeIsin(string code) =>
+        code.Length == 12 && char.IsLetter(code[0]) && char.IsLetter(code[1]);
 }
